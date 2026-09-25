@@ -32,7 +32,9 @@ static int pkcs7_report(const char *what, int ret,
 			break;
 
 		printf("%s: OK, vouched for by ", what);
-		if (key->cert)
+		if (!key)
+			printf("its digest");
+		else if (key->cert)
 			printf("\"%s\"", key->cert->subject);
 		else
 			printf("%*phN", key->hashlen, key->hash);
@@ -63,17 +65,23 @@ static int pkcs7_cmd_verify(int argc, char *argv[], bool verbose)
 	void *sig;
 	int ret;
 
-	if (argc != 3)
+	if (argc != 2 && argc != 3)
 		return COMMAND_ERROR_USAGE;
 
 	kr = pkcs7_keyring(argv[0]);
 	if (!kr)
 		return COMMAND_ERROR;
 
-	sig = read_file(argv[2], &siglen);
-	if (!sig) {
-		printf("%s: %m\n", argv[2]);
-		return COMMAND_ERROR;
+	if (argc == 2) {
+		/* Only the digests the keyring vouches for are considered */
+		sig = NULL;
+		siglen = 0;
+	} else {
+		sig = read_file(argv[2], &siglen);
+		if (!sig) {
+			printf("%s: %m\n", argv[2]);
+			return COMMAND_ERROR;
+		}
 	}
 
 	ret = pkcs7_verify_file(sig, siglen, argv[1], kr, &key);
@@ -164,10 +172,13 @@ BAREBOX_CMD_HELP_START(pkcs7)
 BAREBOX_CMD_HELP_TEXT("Verify detached PKCS#7 signatures against the keys in KEYRING.")
 BAREBOX_CMD_HELP_TEXT("A signature is accepted if it was made by a key in KEYRING, or")
 BAREBOX_CMD_HELP_TEXT("by a certificate that chains up to one, using the certificates")
-BAREBOX_CMD_HELP_TEXT("carried in the signature.")
+BAREBOX_CMD_HELP_TEXT("carried in the signature. Data can also be vouched for by the")
+BAREBOX_CMD_HELP_TEXT("SHA256 digests in KEYRING (e.g. EFI db), and is always rejected")
+BAREBOX_CMD_HELP_TEXT("if its digest is blacklisted (e.g. by EFI dbx).")
 BAREBOX_CMD_HELP_TEXT("")
 BAREBOX_CMD_HELP_TEXT("Commands:")
-BAREBOX_CMD_HELP_OPT ("verify KEYRING FILE SIGFILE", "verify the signature of FILE")
+BAREBOX_CMD_HELP_OPT ("verify KEYRING FILE [SIGFILE]", "verify the signature of FILE, or")
+BAREBOX_CMD_HELP_OPT ("", "only its SHA256, if no SIGFILE is given")
 #ifdef CONFIG_CRYPTO_VERITY_SIG
 BAREBOX_CMD_HELP_OPT ("verify-ddi KEYRING SIGDEV", "verify the root hash signature in a")
 BAREBOX_CMD_HELP_OPT ("", "Discoverable Disk Image *-verity-sig partition")

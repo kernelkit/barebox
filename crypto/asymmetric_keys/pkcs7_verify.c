@@ -81,6 +81,12 @@ static int pkcs7_digest(struct pkcs7_message *pkcs7,
 	}
 	pr_devel("MsgDigest = [%*ph]\n", 8, sig->m);
 
+	if (blacklist_has_hash(digest_algo(d), sig->m, sig->m_size)) {
+		pr_warn("Sig %u: Data is blacklisted\n", sinfo->index);
+		ret = -EKEYREJECTED;
+		goto error;
+	}
+
 	/* However, if there are authenticated attributes, there must be a
 	 * message digest attribute amongst them which corresponds to the
 	 * digest we just calculated.
