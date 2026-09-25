@@ -7,6 +7,7 @@ obj-$(CONFIG_CRYPTO_X509) += \
 	ecdsasignature.asn1.o \
 	x509_cert_parser.o \
 	x509_public_key.o \
+	x509_loader.o \
 	signature.o
 
 obj-$(CONFIG_CRYPTO_PKCS7) += \

@@ -2,6 +2,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <base64.h>
 #include <bselftest.h>
 #include <crypto/ecdsa.h>
 #include <crypto/rsa.h>
@@ -257,3 +258,89 @@ out:
 		x509_free_certificate(ca);
 }
 bselftest(core, test_x509_corrupt);
+
+static void keyring_free_certs(struct keyring *kr)
+{
+	struct keyring_link *link, *tmp;
+
+	list_for_each_entry_safe(link, tmp, &kr->links, node) {
+		const struct x509_certificate *cert = link->key->cert;
+
+		list_del(&link->node);
+		free(link);
+		x509_free_certificate((struct x509_certificate *)cert);
+	}
+}
+
+static int keyring_count(const struct keyring *kr)
+{
+	const struct public_key *key;
+	int n = 0;
+
+	for_each_key_in_keyring(key, kr)
+		n++;
+
+	return n;
+}
+
+static char *pem_encode(char *p, const u8 *der, size_t len)
+{
+	p += sprintf(p, "-----BEGIN CERTIFICATE-----\n");
+	uuencode(p, (const char *)der, len);
+	p += strlen(p);
+	return p + sprintf(p, "\n-----END CERTIFICATE-----\n");
+}
+
+static void test_x509_loader(void)
+{
+	size_t len = sizeof(ca_rsa_der) + sizeof(ca_ec_der);
+	struct keyring kr = {
+		.name = "x509-selftest",
+		.links = LIST_HEAD_INIT(kr.links),
+	};
+	char *pem, *p;
+	u8 *der;
+
+	/* Concatenated DER */
+	der = xmalloc(len);
+	memcpy(der, ca_rsa_der, sizeof(ca_rsa_der));
+	memcpy(der + sizeof(ca_rsa_der), ca_ec_der, sizeof(ca_ec_der));
+
+	assert_inteq(x509_load_certificates(&kr, der, len), 2);
+	assert_inteq(keyring_count(&kr), 2);
+
+	/* Already present certificates are skipped */
+	assert_inteq(x509_load_certificates(&kr, der, len), 0);
+	assert_inteq(keyring_count(&kr), 2);
+	keyring_free_certs(&kr);
+
+	/* Certificates preceding a broken one are kept */
+	assert_cond(x509_load_certificates(&kr, der, len - 1) < 0);
+	assert_inteq(keyring_count(&kr), 1);
+	keyring_free_certs(&kr);
+	free(der);
+
+	/* PEM bundle, with some surrounding text */
+	pem = p = xzalloc(2 * BASE64_LENGTH(len) + 256);
+	p += sprintf(p, "Some comment\n");
+	p = pem_encode(p, leaf_ec_der, sizeof(leaf_ec_der));
+	p += sprintf(p, "\nMore comments\n");
+	p = pem_encode(p, root_rsa4096_der, sizeof(root_rsa4096_der));
+
+	assert_inteq(x509_load_certificates(&kr, pem, strlen(pem)), 2);
+	assert_inteq(keyring_count(&kr), 2);
+	assert_inteq(x509_load_certificates(&kr, pem, strlen(pem)), 0);
+
+	/* Missing END marker */
+	keyring_free_certs(&kr);
+	pem[strlen(pem) - 10] = '\0';
+	assert_cond(x509_load_certificates(&kr, pem, strlen(pem)) < 0);
+	assert_inteq(keyring_count(&kr), 1);
+	keyring_free_certs(&kr);
+
+	assert_cond(x509_load_certificates(&kr, "garbage", 7) < 0);
+	assert_inteq(keyring_count(&kr), 0);
+
+	free(pem);
+}
+bselftest(core, test_x509_loader);
