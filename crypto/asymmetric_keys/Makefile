@@ -9,8 +9,16 @@ obj-$(CONFIG_CRYPTO_X509) += \
 	x509_public_key.o \
 	signature.o
 
+obj-$(CONFIG_CRYPTO_PKCS7) += \
+	pkcs7.asn1.o \
+	pkcs7_parser.o \
+	pkcs7_verify.o \
+	pkcs7_trust.o \
+	pkcs7.o
+
 $(obj)/x509_cert_parser.o: \
 	$(obj)/x509.asn1.h \
 	$(obj)/x509_akid.asn1.h
 $(obj)/x509_public_key.o: $(obj)/rsapubkey.asn1.h
 $(obj)/signature.o: $(obj)/ecdsasignature.asn1.h
+$(obj)/pkcs7_parser.o: $(obj)/pkcs7.asn1.h
