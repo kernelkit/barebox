@@ -18,6 +18,9 @@ fuzzer-$(CONFIG_FS_FAT)		+= fat
 fuzzer-$(CONFIG_STATE)		+= state-direct
 fuzzer-$(CONFIG_DM_LVM)		+= lvm
 fuzzer-$(CONFIG_DM_LVM)		+= lvm-md
+fuzzer-$(CONFIG_CRYPTO_PKCS7)	+= x509
+fuzzer-$(CONFIG_CRYPTO_PKCS7)	+= pkcs7
+fuzzer-$(CONFIG_CRYPTO_VERITY_SIG)	+= verity-sig
 
 ifeq ($(CONFIG_SANDBOX),y)
 
