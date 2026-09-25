@@ -2416,11 +2416,13 @@ config CMD_KEYSTORE
 	  keystore provides access to the barebox keystore.
 
 config CMD_KEYS
-	depends on CRYPTO_BUILTIN_KEYS
+	depends on CRYPTO_KEYRING
 	bool
 	prompt "keys"
 	help
-	  The keys command provides information about builtin public keys
+	  The keys command provides information about public keys and
+	  keyrings, and allows X.509 certificates to be added to keyrings
+	  at runtime.
 
 config CMD_LOGIN
 	tristate
