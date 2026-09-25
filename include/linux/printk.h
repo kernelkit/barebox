@@ -149,6 +149,7 @@ static inline __printf(3, 4) int dev_err_probe(struct device *dev,
 #define pr_debug(fmt, arg...)	__pr_printk(7, pr_fmt(fmt), ##arg)
 #define debug(fmt, arg...)	__pr_printk(7, pr_fmt(fmt), ##arg)
 #define pr_vdebug(fmt, arg...)	__pr_printk(8, pr_fmt(fmt), ##arg)
+#define pr_devel(fmt, arg...)	__pr_printk(8, pr_fmt(fmt), ##arg)
 #define pr_cont(fmt, arg...)	__pr_printk(-1, fmt, ##arg)
 
 #define pr_emerg_once(fmt, arg...)	__pr_printk_once(0, pr_fmt(fmt), ##arg)
