@@ -137,6 +137,7 @@ config CRYPTO_X509
 	select DIGEST
 	select DIGEST_SHA256_GENERIC
 	select CRYPTO_KEYRING
+	select BASE64
 	help
 	  Parse X.509 certificates, making their public keys available to
 	  signature verifiers. The certificate identities are used when

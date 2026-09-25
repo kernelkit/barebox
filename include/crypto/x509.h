@@ -98,6 +98,10 @@ struct x509_certificate {
 #ifdef CONFIG_CRYPTO_X509
 struct x509_certificate *x509_cert_parse(const void *data, size_t datalen);
 void x509_free_certificate(struct x509_certificate *cert);
+
+int x509_keyring_add_cert(struct keyring *kr, const void *der, size_t len);
+int x509_load_certificates(struct keyring *kr, const void *buf, size_t len);
+int x509_load_certificate_file(struct keyring *kr, const char *path);
 #else
 static inline struct x509_certificate *x509_cert_parse(const void *data,
 						       size_t datalen)
@@ -107,6 +111,24 @@ static inline struct x509_certificate *x509_cert_parse(const void *data,
 
 static inline void x509_free_certificate(struct x509_certificate *cert)
 {
+}
+
+static inline int x509_keyring_add_cert(struct keyring *kr, const void *der,
+					size_t len)
+{
+	return -ENOSYS;
+}
+
+static inline int x509_load_certificates(struct keyring *kr, const void *buf,
+					 size_t len)
+{
+	return -ENOSYS;
+}
+
+static inline int x509_load_certificate_file(struct keyring *kr,
+					     const char *path)
+{
+	return -ENOSYS;
 }
 #endif
 
