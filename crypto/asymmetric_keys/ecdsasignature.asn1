@@ -1,0 +1,4 @@
+ECDSASignature ::= SEQUENCE {
+	r	INTEGER ({ x509_ecdsa_note_r }),
+	s	INTEGER ({ x509_ecdsa_note_s })
+}

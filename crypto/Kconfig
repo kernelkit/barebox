@@ -126,10 +126,28 @@ config CRYPTO_ECDSA
 	bool "ECDSA support"
 	select CRYPTO_ECC
 
+config CRYPTO_KEYRING
+	bool
+
+config CRYPTO_X509
+	bool "X.509 certificate parser"
+	depends on CRYPTO_RSA || CRYPTO_ECDSA
+	select ASN1
+	select OID_REGISTRY
+	select DIGEST
+	select DIGEST_SHA256_GENERIC
+	select CRYPTO_KEYRING
+	help
+	  Parse X.509 certificates, making their public keys available to
+	  signature verifiers. The certificate identities are used when
+	  finding the signer of a PKCS#7 message, and to verify chains of
+	  certificates.
+
 config CRYPTO_BUILTIN_KEYS
 	bool "builtin keys"
 	select KEYTOC
 	select IDR
+	select CRYPTO_KEYRING
 
 config CRYPTO_PUBLIC_KEYS
 	depends on CRYPTO_BUILTIN_KEYS
