@@ -163,6 +163,34 @@ config CRYPTO_VERITY_SIG
 	  partitions of Discoverable Disk Images, as described by the
 	  UAPI Group's Discoverable Partitions Specification.
 
+config CRYPTO_EFI_SIGLIST
+	bool
+	select CRYPTO_X509
+
+config CRYPTO_EFI_DB
+	bool "EFI signature database keyring"
+	depends on EFI_PAYLOAD
+	depends on CRYPTO_RSA || CRYPTO_ECDSA
+	select CRYPTO_EFI_SIGLIST
+	help
+	  When running as an EFI payload, load the certificates and SHA256
+	  digests in the EFI signature database (db) into the "@efi"
+	  keyring, and the revoked certificates and digests in the
+	  forbidden signature database (dbx) into the blacklist.
+
+	  db is only trusted when the platform is in Secure Boot user
+	  mode, as it may otherwise have been modified by anyone. dbx is
+	  always honored.
+
+config CRYPTO_EFI_DB_INSECURE
+	bool "Trust the EFI signature database without Secure Boot"
+	depends on CRYPTO_EFI_DB && INSECURE
+	help
+	  Trust the contents of db even when Secure Boot is disabled, or
+	  the platform is in setup mode. This is only useful during
+	  development, e.g. to test with a firmware that is not set up to
+	  enforce Secure Boot.
+
 config CRYPTO_BUILTIN_KEYS
 	bool "builtin keys"
 	select KEYTOC

@@ -20,6 +20,8 @@ obj-$(CONFIG_CRYPTO_RSA)	+= rsa.o
 obj-$(CONFIG_CRYPTO_KEYRING)	+= public-keys.o
 obj-$(CONFIG_CRYPTO_X509)	+= asymmetric_keys/
 obj-$(CONFIG_CRYPTO_VERITY_SIG)	+= verity-sig.o
+obj-$(CONFIG_CRYPTO_EFI_SIGLIST)	+= efi-siglist.o
+obj-$(CONFIG_CRYPTO_EFI_DB)	+= efi-db.o
 obj-$(CONFIG_CRYPTO_ECC)	+= ecc.o
 obj-$(CONFIG_CRYPTO_ECDSA) 	+= ecdsa.o
 
