@@ -41,6 +41,7 @@ struct keyinfo {
 	int nr_keyrings;
 	char *path;
 	char *name_c;
+	X509 *cert;
 };
 
 static int dts, standalone;
@@ -71,9 +72,10 @@ static int openssl_error(const char *fmt, ...)
  * @keydir:	Directory containins the key
  * @name	Name of key file (will have a .crt extension)
  * @key		Returns key object, or NULL on failure
+ * @certp	Returns the certificate, or NULL if the file held a bare key
  * @return 0 if ok, -ve on error (in which case *rsap will be set to NULL)
  */
-static int pem_get_pub_key(const char *path, EVP_PKEY **pkey)
+static int pem_get_pub_key(const char *path, EVP_PKEY **pkey, X509 **certp)
 {
 	EVP_PKEY *key;
 	X509 *cert;
@@ -110,9 +112,9 @@ static int pem_get_pub_key(const char *path, EVP_PKEY **pkey)
 	}
 
 	fclose(f);
-	X509_free(cert);
 
 	*pkey = key;
+	*certp = cert;
 
 	return 0;
 
@@ -509,6 +511,41 @@ err:
 	return ret ? -EINVAL : 0;
 }
 
+/*
+ * Emit the DER encoding of the certificate that the key was read from,
+ * so that barebox can make use of its identity, e.g. to verify PKCS#7
+ * signatures.
+ */
+static int print_cert(struct keyinfo *info)
+{
+	unsigned char *der = NULL;
+	int i, len;
+
+	if (!info->cert)
+		return 0;
+
+	len = i2d_X509(info->cert, &der);
+	if (len < 0)
+		return openssl_error("Couldn't encode certificate %s", info->path);
+
+	fprintf(outfilep, "\nstatic const unsigned char %s_cert[] = {", info->name_c);
+	for (i = 0; i < len; i++)
+		fprintf(outfilep, "%s0x%02x,", (i % 12) ? " " : "\n\t", der[i]);
+	fprintf(outfilep, "\n};\n");
+
+	OPENSSL_free(der);
+	return 0;
+}
+
+static void print_cert_ref(struct keyinfo *info)
+{
+	if (!info->cert)
+		return;
+
+	fprintf(outfilep, "\t.cert_der = %s_cert,\n", info->name_c);
+	fprintf(outfilep, "\t.cert_der_len = sizeof(%s_cert),\n", info->name_c);
+}
+
 static int gen_key_ecdsa(EVP_PKEY *key, struct keyinfo *info)
 {
 	char group[128];
@@ -570,6 +607,10 @@ static int gen_key_ecdsa(EVP_PKEY *key, struct keyinfo *info)
 		if (!standalone) {
 			int i;
 
+			ret = print_cert(info);
+			if (ret)
+				return ret;
+
 			fprintf(outfilep, "\nstatic const struct public_key %s_public_key = {\n", info->name_c);
 			fprintf(outfilep, "\t.type = PUBLIC_KEY_TYPE_ECDSA,\n");
 			if (info->name_hint)
@@ -577,6 +618,7 @@ static int gen_key_ecdsa(EVP_PKEY *key, struct keyinfo *info)
 			fprintf(outfilep, "\t.hash = %s_hash,\n", info->name_c);
 			fprintf(outfilep, "\t.hashlen = %u,\n", SHA256_DIGEST_LENGTH);
 			fprintf(outfilep, "\t.ecdsa = &%s,\n", info->name_c);
+			print_cert_ref(info);
 			fprintf(outfilep, "};\n");
 			for (i = 0; i < info->nr_keyrings; i++) {
 				fprintf(outfilep, "\n");
@@ -685,6 +727,10 @@ static int gen_key_rsa(EVP_PKEY *key, struct keyinfo *info)
 		if (!standalone) {
 			int i;
 
+			ret = print_cert(info);
+			if (ret)
+				return ret;
+
 			fprintf(outfilep, "\nstatic const struct public_key %s_public_key = {\n", info->name_c);
 			fprintf(outfilep, "\t.type = PUBLIC_KEY_TYPE_RSA,\n");
 			if (info->name_hint)
@@ -692,6 +738,7 @@ static int gen_key_rsa(EVP_PKEY *key, struct keyinfo *info)
 			fprintf(outfilep, "\t.hash = %s_hash,\n", info->name_c);
 			fprintf(outfilep, "\t.hashlen = %u,\n", SHA256_DIGEST_LENGTH);
 			fprintf(outfilep, "\t.rsa = &%s,\n", info->name_c);
+			print_cert_ref(info);
 			fprintf(outfilep, "};\n");
 			for (i = 0; i < info->nr_keyrings; i++) {
 				fprintf(outfilep, "\n");
@@ -720,7 +767,7 @@ static int gen_key(struct keyinfo *info)
 		if (ret)
 			exit(1);
 	} else {
-		ret = pem_get_pub_key(info->path, &key);
+		ret = pem_get_pub_key(info->path, &key, &info->cert);
 		if (ret)
 			exit(1);
 	}
