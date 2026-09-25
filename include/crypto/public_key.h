@@ -39,6 +39,13 @@ struct public_key {
 
 	/* Certificate that the key was extracted from, if any */
 	const struct x509_certificate *cert;
+
+	/*
+	 * DER encoding of the certificate of a compiled in key, if any,
+	 * from which cert is parsed during initialization.
+	 */
+	const void *cert_der;
+	unsigned int cert_der_len;
 };
 
 /*
