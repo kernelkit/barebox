@@ -66,6 +66,11 @@ static void keys_print(void)
 
 	for_each_keyring(kr) {
 		printf("RING: %s\n", kr->name);
+
+		if (!list_empty(&kr->hashes))
+			printf("    HASHES: %zu\n",
+			       list_count_nodes((struct list_head *)&kr->hashes));
+
 		for_each_link_in_keyring(link, kr) {
 			if (link->type == KEYRING_LINK_KEY) {
 				const struct public_key *key = link->key;

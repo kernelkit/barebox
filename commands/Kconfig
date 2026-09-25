@@ -2419,6 +2419,7 @@ config CMD_KEYS
 	depends on CRYPTO_KEYRING
 	bool
 	prompt "keys"
+	select PRINTF_HEXSTR
 	help
 	  The keys command provides information about public keys and
 	  keyrings, and allows X.509 certificates to be added to keyrings
@@ -2428,6 +2429,7 @@ config CMD_PKCS7
 	depends on CRYPTO_PKCS7
 	bool
 	prompt "pkcs7"
+	select PRINTF_HEXSTR
 	help
 	  Verify detached PKCS#7 signatures of files, and, with
 	  CRYPTO_VERITY_SIG, the root hash signatures of Discoverable Disk
