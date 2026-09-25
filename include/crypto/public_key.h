@@ -7,6 +7,7 @@
 
 struct rsa_public_key;
 struct ecdsa_public_key;
+struct x509_certificate;
 
 enum public_key_type {
 	PUBLIC_KEY_TYPE_RSA,
@@ -35,6 +36,9 @@ struct public_key {
 		const struct rsa_public_key *rsa;
 		const struct ecdsa_public_key *ecdsa;
 	};
+
+	/* Certificate that the key was extracted from, if any */
+	const struct x509_certificate *cert;
 };
 
 /*
