@@ -31,20 +31,28 @@ static bool pkcs7_key_has_id(const struct public_key *key,
  * Find a key in the given keyring by identifier.  The preferred identifier is
  * the id_0 and the fallback identifier is the id_1.  If both are given, the
  * former is matched against either of the sought key's identifiers and the
- * latter must match the found key's subjectKeyIdentifier.
+ * latter must match the found key's subjectKeyIdentifier.  If both are
+ * missing, id_2 must match the subject name of the sought key's certificate.
  */
 static const struct public_key *
 find_asymmetric_key(const struct keyring *keyring,
 		    const struct asymmetric_key_id *id_0,
-		    const struct asymmetric_key_id *id_1)
+		    const struct asymmetric_key_id *id_1,
+		    const struct asymmetric_key_id *id_2)
 {
 	const struct asymmetric_key_id *lookup = id_0 ?: id_1;
 	const struct public_key *key;
 
-	if (WARN_ON(!lookup))
+	if (WARN_ON(!lookup && !id_2))
 		return ERR_PTR(-EINVAL);
 
 	for_each_key_in_keyring(key, keyring) {
+		if (!lookup) {
+			if (key->cert && x509_subject_is(key->cert, id_2))
+				return key;
+			continue;
+		}
+
 		if (!pkcs7_key_has_id(key, lookup))
 			continue;
 
@@ -93,7 +101,7 @@ static int pkcs7_validate_trust_one(struct pkcs7_message *pkcs7,
 		 * keys.
 		 */
 		key = find_asymmetric_key(trust_keyring,
-					  x509->id, x509->skid);
+					  x509->id, x509->skid, NULL);
 		if (!IS_ERR(key)) {
 			/* One of the X.509 certificates in the PKCS#7 message
 			 * is apparently the same as one we already trust.
@@ -123,10 +131,12 @@ static int pkcs7_validate_trust_one(struct pkcs7_message *pkcs7,
 	/* No match - see if the root certificate has a signer amongst the
 	 * trusted keys.
 	 */
-	if (last && (last->sig->auth_ids[0] || last->sig->auth_ids[1])) {
+	if (last && (last->sig->auth_ids[0] || last->sig->auth_ids[1] ||
+		     last->sig->auth_ids[2])) {
 		key = find_asymmetric_key(trust_keyring,
 					  last->sig->auth_ids[0],
-					  last->sig->auth_ids[1]);
+					  last->sig->auth_ids[1],
+					  last->sig->auth_ids[2]);
 		if (!IS_ERR(key)) {
 			x509 = last;
 			pr_devel("sinfo %u: Root cert %u signer is key %*phN\n",
@@ -142,7 +152,7 @@ static int pkcs7_validate_trust_one(struct pkcs7_message *pkcs7,
 	 * the signed info directly.
 	 */
 	key = find_asymmetric_key(trust_keyring,
-				  sinfo->sig->auth_ids[0], NULL);
+				  sinfo->sig->auth_ids[0], NULL, NULL);
 	if (!IS_ERR(key)) {
 		pr_devel("sinfo %u: Direct signer is key %*phN\n",
 			 sinfo->index, key->hashlen, key->hash);

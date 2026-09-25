@@ -96,6 +96,11 @@ static void test_pkcs7_chain(void)
 		/* ECDSA leaf directly under the root */
 		assert_inteq(verify(sig_ec, &tkr, NULL), 0);
 
+		/* Leaf without AKID, found by its issuer's name */
+		key = NULL;
+		assert_inteq(verify(sig_noakid, &tkr, &key), 0);
+		assert_cond(key == anchor);
+
 		/* One of the signers is trusted */
 		assert_inteq(verify(sig_multi, &tkr, NULL), 0);
 	}
