@@ -66,6 +66,18 @@ struct keyring {
 	const char *name;
 	struct list_head links;	/* list of struct keyring_link */
 	struct list_head node;	/* link in keyring_registry */
+	struct list_head hashes; /* list of struct keyring_hash */
+};
+
+/*
+ * Digest of some data (e.g. an image) that a keyring vouches for without
+ * any signature, like the hashes in the EFI signature database.
+ */
+struct keyring_hash {
+	struct list_head node;
+	enum hash_algo algo;
+	unsigned int len;
+	u8 digest[];
 };
 
 enum keyring_link_type {
@@ -123,6 +135,24 @@ extern struct list_head keyring_registry;
 
 #define for_each_keyring(kr) \
 	list_for_each_entry(kr, &keyring_registry, node)
+
+int keyring_add_hash(struct keyring *kr, enum hash_algo algo,
+		     const void *digest, unsigned int len);
+bool keyring_has_hash(const struct keyring *kr, enum hash_algo algo,
+		      const void *digest, unsigned int len);
+int keyring_del_hash(struct keyring *kr, enum hash_algo algo,
+		     const void *digest, unsigned int len);
+
+/*
+ * The blacklist holds the digests of revoked certificates (the SHA256 of
+ * either the whole certificate or its TBSCertificate) and of data that
+ * must not be trusted, regardless of any signatures, e.g. the contents of
+ * the EFI dbx variable.
+ */
+struct keyring *keyring_blacklist(void);
+bool blacklist_has_hash(enum hash_algo algo, const void *digest,
+			unsigned int len);
+bool public_key_is_blacklisted(const struct public_key *key);
 
 int public_key_add(const char *keyring, const struct public_key *key);
 int public_key_verify(const struct public_key *key, const uint8_t *sig,

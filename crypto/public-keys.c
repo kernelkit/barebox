@@ -40,9 +40,145 @@ struct keyring *keyring_create(const char *name)
 	kr->name = xstrdup(name);
 	INIT_LIST_HEAD(&kr->links);
 	INIT_LIST_HEAD(&kr->node);
+	INIT_LIST_HEAD(&kr->hashes);
 	list_add_tail(&kr->node, &keyring_registry);
 
 	return kr;
+}
+
+/**
+ * keyring_add_hash - Vouch for data by its digest
+ * @kr: The keyring
+ * @algo: The digest algorithm
+ * @digest: The digest of the data
+ * @len: The size of @digest
+ */
+int keyring_add_hash(struct keyring *kr, enum hash_algo algo,
+		     const void *digest, unsigned int len)
+{
+	struct keyring_hash *h;
+
+	if (!kr || !digest || !len)
+		return -EINVAL;
+
+	if (!kr->hashes.next)
+		INIT_LIST_HEAD(&kr->hashes);
+
+	if (keyring_has_hash(kr, algo, digest, len))
+		return 0;
+
+	h = xzalloc(sizeof(*h) + len);
+	h->algo = algo;
+	h->len = len;
+	memcpy(h->digest, digest, len);
+	list_add_tail(&h->node, &kr->hashes);
+
+	return 0;
+}
+
+int keyring_del_hash(struct keyring *kr, enum hash_algo algo,
+		     const void *digest, unsigned int len)
+{
+	struct keyring_hash *h, *tmp;
+
+	if (!kr || !kr->hashes.next)
+		return -ENOENT;
+
+	list_for_each_entry_safe(h, tmp, &kr->hashes, node) {
+		if (h->algo == algo && h->len == len &&
+		    !memcmp(h->digest, digest, len)) {
+			list_del(&h->node);
+			free(h);
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+static bool __keyring_has_hash(const struct keyring *kr, enum hash_algo algo,
+			       const void *digest, unsigned int len, int depth)
+{
+	const struct keyring_link *link;
+	const struct keyring_hash *h;
+
+	/* Keyrings created without keyring_create() may lack a hash list */
+	if (kr->hashes.next) {
+		list_for_each_entry(h, &kr->hashes, node) {
+			if (h->algo == algo && h->len == len &&
+			    !memcmp(h->digest, digest, len))
+				return true;
+		}
+	}
+
+	if (depth + 1 >= KEYRING_MAX_DEPTH)
+		return false;
+
+	list_for_each_entry(link, &kr->links, node) {
+		if (link->type == KEYRING_LINK_KEYRING &&
+		    __keyring_has_hash(link->keyring, algo, digest, len,
+				       depth + 1))
+			return true;
+	}
+
+	return false;
+}
+
+/**
+ * keyring_has_hash - Check whether a keyring vouches for some data
+ * @kr: The keyring, whose sub-keyrings are also searched
+ * @algo: The digest algorithm
+ * @digest: The digest of the data
+ * @len: The size of @digest
+ */
+bool keyring_has_hash(const struct keyring *kr, enum hash_algo algo,
+		      const void *digest, unsigned int len)
+{
+	if (!kr || !digest)
+		return false;
+
+	return __keyring_has_hash(kr, algo, digest, len, 0);
+}
+
+#define BLACKLIST_KEYRING ".blacklist"
+
+struct keyring *keyring_blacklist(void)
+{
+	struct keyring *kr;
+
+	kr = keyring_find(BLACKLIST_KEYRING);
+	if (!kr)
+		kr = keyring_create(BLACKLIST_KEYRING);
+
+	return IS_ERR(kr) ? NULL : kr;
+}
+
+bool blacklist_has_hash(enum hash_algo algo, const void *digest,
+			unsigned int len)
+{
+	const struct keyring *kr = keyring_find(BLACKLIST_KEYRING);
+
+	return kr && keyring_has_hash(kr, algo, digest, len);
+}
+
+/**
+ * public_key_is_blacklisted - Check whether a key has been revoked
+ * @key: The key
+ *
+ * Only keys that were extracted from a certificate can be revoked, by
+ * listing the SHA256 of either the certificate or its TBSCertificate.
+ */
+bool public_key_is_blacklisted(const struct public_key *key)
+{
+	const struct x509_certificate *cert = key->cert;
+
+	if (!IS_ENABLED(CONFIG_CRYPTO_X509) || !cert)
+		return false;
+
+	return blacklist_has_hash(HASH_ALGO_SHA256, cert->sha256,
+				  sizeof(cert->sha256)) ||
+	       blacklist_has_hash(HASH_ALGO_SHA256, cert->fingerprint,
+				  sizeof(cert->fingerprint));
 }
 
 int keyring_link_key(struct keyring *kr, const struct public_key *key)
