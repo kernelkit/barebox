@@ -523,3 +523,85 @@ static __maybe_unused int rsa_init_keys(void)
 #ifdef CONFIG_CRYPTO_BUILTIN_KEYS
 device_initcall(rsa_init_keys);
 #endif
+
+/**
+ * rsa_key_create() - Create a public key from its raw parameters
+ *
+ * Unlike keys that are compiled in by keytoc, keys that are created at
+ * runtime do not come with the precomputed parameters needed for
+ * Montgomery multiplication, so derive them here.
+ *
+ * @n:		Modulus, as a big endian byte array
+ * @n_len:	Number of bytes in @n
+ * @e:		Public exponent
+ * @return the key on success, error pointer otherwise
+ */
+struct rsa_public_key *rsa_key_create(const u8 *n, size_t n_len, u64 e)
+{
+	struct rsa_public_key *key;
+	uint32_t *modulus, *rr, carry, x;
+	unsigned int bits, i, j;
+
+	while (n_len && !*n) {
+		n++;
+		n_len--;
+	}
+
+	if (!n_len || !(n[n_len - 1] & 1) || e < 3 || !(e & 1))
+		return ERR_PTR(-EBADMSG);
+
+	bits = n_len * 8;
+	if (bits < RSA_MIN_KEY_BITS || bits > RSA_MAX_KEY_BITS || bits % 32)
+		return ERR_PTR(-EOPNOTSUPP);
+
+	key = xzalloc(sizeof(*key));
+	key->len = bits / 32;
+	key->exponent = e;
+
+	modulus = xzalloc(bits / 8);
+	for (i = 0; i < key->len; i++) {
+		const u8 *w = n + n_len - 4 * (i + 1);
+
+		modulus[i] = (uint32_t)w[0] << 24 | w[1] << 16 | w[2] << 8 | w[3];
+	}
+	key->modulus = modulus;
+
+	/*
+	 * -1 / modulus[0] mod 2^32, by Newton's method. Any odd x is
+	 * its own inverse mod 2^3, and each iteration doubles the
+	 * number of correct bits.
+	 */
+	x = modulus[0];
+	for (i = 0; i < 4; i++)
+		x *= 2 - modulus[0] * x;
+	key->n0inv = -x;
+
+	/* R^2 mod modulus, where R = 2^bits, by repeated doubling of 1 */
+	rr = xzalloc(bits / 8);
+	rr[0] = 1;
+	for (i = 0; i < 2 * bits; i++) {
+		carry = 0;
+		for (j = 0; j < key->len; j++) {
+			uint32_t next = rr[j] >> 31;
+
+			rr[j] = (rr[j] << 1) | carry;
+			carry = next;
+		}
+
+		if (carry || greater_equal_modulus(key, rr))
+			subtract_modulus(key, rr);
+	}
+	key->rr = rr;
+
+	return key;
+}
+
+void rsa_key_free(struct rsa_public_key *key)
+{
+	if (!key)
+		return;
+
+	free((void *)key->modulus);
+	free((void *)key->rr);
+	free(key);
+}

@@ -38,6 +38,9 @@ struct device_node;
 
 struct public_key *rsa_of_read_key(struct device_node *node);
 
+struct rsa_public_key *rsa_key_create(const u8 *n, size_t n_len, u64 e);
+void rsa_key_free(struct rsa_public_key *key);
+
 #ifdef CONFIG_CRYPTO_RSA
 /**
  * rsa_verify() - Verify a signature against some data
