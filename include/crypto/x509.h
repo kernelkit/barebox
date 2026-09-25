@@ -12,6 +12,7 @@
 
 #include <linux/types.h>
 #include <linux/err.h>
+#include <string.h>
 #include <crypto/public_key.h>
 #include <crypto/sha.h>
 
@@ -94,6 +95,14 @@ struct x509_certificate {
 	bool		unsupported_sig;	/* T if signature uses unsupported crypto */
 	bool		blacklisted;
 };
+
+/* Check whether the certificate's subject is the name in @name */
+static inline bool x509_subject_is(const struct x509_certificate *cert,
+				   const struct asymmetric_key_id *name)
+{
+	return cert->raw_subject_size == name->len &&
+	       !memcmp(cert->raw_subject, name->data, name->len);
+}
 
 #ifdef CONFIG_CRYPTO_X509
 struct x509_certificate *x509_cert_parse(const void *data, size_t datalen);

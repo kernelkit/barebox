@@ -270,6 +270,18 @@ static int pkcs7_verify_sig_chain(struct pkcs7_message *pkcs7,
 				if (asymmetric_key_id_same(p->skid, auth))
 					goto found_issuer;
 			}
+		} else if (sig->auth_ids[2]) {
+			/*
+			 * Unlike Linux, we fall back to matching the issuer's
+			 * name, as certificates without an AKID (e.g. X.509v1
+			 * ones) are still in use.
+			 */
+			auth = sig->auth_ids[2];
+			pr_debug("- want name %*phN\n", auth->len, auth->data);
+			for (p = pkcs7->certs; p; p = p->next) {
+				if (x509_subject_is(p, auth))
+					goto found_issuer;
+			}
 		}
 
 		/* We didn't find the root of this chain */
