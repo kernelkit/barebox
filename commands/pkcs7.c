@@ -44,7 +44,7 @@ static int pkcs7_report(const char *what, int ret,
 		printf("%s: not signed by any trusted key\n", what);
 		break;
 	case -EKEYREJECTED:
-		printf("%s: invalid signature\n", what);
+		printf("%s: rejected, invalid signature or blacklisted\n", what);
 		break;
 	case -ENOPKG:
 		printf("%s: unsupported algorithm\n", what);
