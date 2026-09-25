@@ -2424,6 +2424,21 @@ config CMD_KEYS
 	  keyrings, and allows X.509 certificates to be added to keyrings
 	  at runtime.
 
+config CMD_PKCS7
+	depends on CRYPTO_PKCS7
+	bool
+	prompt "pkcs7"
+	help
+	  Verify detached PKCS#7 signatures of files, and, with
+	  CRYPTO_VERITY_SIG, the root hash signatures of Discoverable Disk
+	  Images, against the keys in a keyring.
+
+	  Usage: pkcs7 [-v] [-s VAR] COMMAND KEYRING ARGS...
+
+	  Commands:
+	    verify KEYRING FILE SIGFILE
+	    verify-ddi KEYRING SIGDEV
+
 config CMD_LOGIN
 	tristate
 	select PASSWORD
