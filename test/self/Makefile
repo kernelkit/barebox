@@ -33,6 +33,7 @@ obj-$(CONFIG_SELFTEST_X509) += x509.o
 obj-$(CONFIG_SELFTEST_PKCS7) += pkcs7.o
 CFLAGS_pkcs7.o += -I$(obj)
 $(obj)/pkcs7.o: $(obj)/pkcs7-root.pem.h
+obj-$(CONFIG_SELFTEST_VERITY_SIG) += verity-sig.o
 CFLAGS_lvm.o += -I$(srctree)/drivers/block/dm/lvm
 
 ifdef REGENERATE_KEYTOC

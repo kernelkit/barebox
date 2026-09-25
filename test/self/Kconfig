@@ -53,6 +53,7 @@ config SELFTEST_ENABLE_ALL
 	select SELFTEST_LVM if BLOCK
 	select SELFTEST_X509 if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_PKCS7 if CRYPTO_RSA && CRYPTO_ECDSA
+	select SELFTEST_VERITY_SIG if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_TALLOC
 	select SELFTEST_BLSPEC if BLSPEC && DEFAULT_ENVIRONMENT
 	help
@@ -186,6 +187,14 @@ config SELFTEST_PKCS7
 	  Tests the verification of detached PKCS#7 signatures, with and
 	  without authenticated attributes and embedded certificate
 	  chains, against keyrings holding different parts of the chain.
+
+config SELFTEST_VERITY_SIG
+	bool "dm-verity root hash signature selftest"
+	depends on CRYPTO_RSA && CRYPTO_ECDSA
+	select CRYPTO_VERITY_SIG
+	help
+	  Tests the parsing and verification of Discoverable Disk Image
+	  root hash signature documents.
 
 config SELFTEST_LVM
 	bool "LVM selftest"
