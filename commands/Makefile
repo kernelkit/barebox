@@ -122,6 +122,7 @@ obj-$(CONFIG_CMD_CLK)		+= clk.o
 obj-$(CONFIG_CMD_KALLSYMS)	+= kallsyms.o
 obj-$(CONFIG_CMD_KEYSTORE)	+= keystore.o
 obj-$(CONFIG_CMD_KEYS)		+= keys.o
+obj-$(CONFIG_CMD_PKCS7)		+= pkcs7.o
 obj-$(CONFIG_CMD_TFTP)		+= tftp.o
 obj-$(CONFIG_CMD_FILETYPE)	+= filetype.o
 obj-$(CONFIG_CMD_BAREBOX_UPDATE)+= barebox-update.o
