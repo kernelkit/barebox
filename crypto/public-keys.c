@@ -5,6 +5,7 @@
 #include <crypto/public_key.h>
 #include <crypto/rsa.h>
 #include <crypto/ecdsa.h>
+#include <crypto/x509.h>
 #include <linux/list.h>
 #include <malloc.h>
 #include <xfuncs.h>
@@ -234,19 +235,71 @@ int public_key_verify(const struct public_key *key, const uint8_t *sig,
 extern const struct public_key_record __public_keys_start[];
 extern const struct public_key_record __public_keys_end[];
 
+/*
+ * Compiled in keys that were generated from a certificate carry its DER
+ * encoding. Parse it, so that the key has an identity that can be used
+ * to find it, e.g. when verifying PKCS#7 signatures.
+ */
+static const struct public_key *public_key_from_cert(const struct public_key *key)
+{
+	struct x509_certificate *cert;
+	struct public_key *pub;
+
+	if (!IS_ENABLED(CONFIG_CRYPTO_X509) || !key->cert_der)
+		return key;
+
+	cert = x509_cert_parse(key->cert_der, key->cert_der_len);
+	if (IS_ERR(cert)) {
+		pr_warn("Unable to parse certificate of key %s, ignoring it: %pe\n",
+			key->key_name_hint ?: "(noname)", cert);
+		return key;
+	}
+
+	pub = cert->pub;
+	if (key->key_name_hint)
+		pub->key_name_hint = xstrdup(key->key_name_hint);
+
+	return pub;
+}
+
 static int init_public_keys(void)
 {
 	const struct public_key_record *rec;
+	const struct public_key **orig, **conv;
+	size_t i, n = __public_keys_end - __public_keys_start;
 	int ret;
 
+	/* A key may be part of multiple keyrings, but should only be
+	 * converted once.
+	 */
+	orig = xzalloc(n * sizeof(*orig));
+	conv = xzalloc(n * sizeof(*conv));
+
 	for (rec = __public_keys_start; rec != __public_keys_end; rec++) {
-		ret = public_key_add(rec->keyring, rec->key);
+		const struct public_key *key = NULL;
+
+		for (i = 0; orig[i]; i++) {
+			if (orig[i] == rec->key) {
+				key = conv[i];
+				break;
+			}
+		}
+
+		if (!key) {
+			key = public_key_from_cert(rec->key);
+			orig[i] = rec->key;
+			conv[i] = key;
+		}
+
+		ret = public_key_add(rec->keyring, key);
 		if (ret)
 			pr_warn("error while adding key %s to %s: %pe\n",
-				rec->key->key_name_hint ?: "(noname)",
+				key->key_name_hint ?: "(noname)",
 				rec->keyring, ERR_PTR(ret));
 	}
 
+	free(orig);
+	free(conv);
 	return 0;
 }
 
