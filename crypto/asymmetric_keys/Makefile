@@ -17,6 +17,10 @@ obj-$(CONFIG_CRYPTO_PKCS7) += \
 	pkcs7_trust.o \
 	pkcs7.o
 
+ifdef CONFIG_FUZZ
+obj-$(CONFIG_CRYPTO_PKCS7) += fuzz.o
+endif
+
 $(obj)/x509_cert_parser.o: \
 	$(obj)/x509.asn1.h \
 	$(obj)/x509_akid.asn1.h

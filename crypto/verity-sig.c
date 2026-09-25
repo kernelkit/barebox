@@ -23,6 +23,7 @@
 
 #include <common.h>
 #include <base64.h>
+#include <fuzz.h>
 #include <jsmn.h>
 #include <linux/ctype.h>
 #include <linux/err.h>
@@ -164,3 +165,14 @@ int verity_sig_verify(const void *buf, size_t len,
 	verity_sig_free(&sig);
 	return ret;
 }
+
+static int fuzz_verity_sig(const char *text, size_t size)
+{
+	struct verity_sig sig;
+
+	if (!verity_sig_parse(text, size, &sig))
+		verity_sig_free(&sig);
+
+	return 0;
+}
+fuzz_test_str("verity-sig", fuzz_verity_sig);

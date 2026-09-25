@@ -8,6 +8,7 @@
 #define pr_fmt(fmt) "PKCS7: "fmt
 #include <common.h>
 #include <digest.h>
+#include <fuzz.h>
 #include <linux/kernel.h>
 #include <linux/export.h>
 #include <linux/slab.h>
@@ -99,7 +100,9 @@ static int pkcs7_digest(struct pkcs7_message *pkcs7,
 		}
 
 		if (memcmp(sig->m, sinfo->msgdigest,
-			   sinfo->msgdigest_len) != 0) {
+			   sinfo->msgdigest_len) != 0 &&
+		    !fuzz_insecure_digest_accepted(sig->m, sinfo->msgdigest,
+						   sinfo->msgdigest_len)) {
 			pr_warn("Sig %u: Message digest doesn't match\n",
 				sinfo->index);
 			ret = -EKEYREJECTED;
