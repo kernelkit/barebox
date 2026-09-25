@@ -33,6 +33,18 @@ config JSMN
 config XXHASH
 	bool
 
+config ASN1
+	bool "ASN.1 decoder" if COMPILE_TEST
+	help
+	  Decoder for ASN.1 BER/DER/CER encoded bytestreams. Grammars
+	  (*.asn1) are compiled into bytecode tables at build time by
+	  scripts/asn1_compiler.
+
+config OID_REGISTRY
+	bool "OID registry" if COMPILE_TEST
+	help
+	  Enable fast lookup object identifier registry.
+
 config ZLIB
 	bool "include gzip uncompression support"
 	select UNCOMPRESS

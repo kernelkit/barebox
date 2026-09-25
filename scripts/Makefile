@@ -11,6 +11,7 @@ hostprogs-always-y					+= bareboxcrc32
 hostprogs-always-y					+= kernel-install
 hostprogs-always-$(CONFIG_QOICONV)			+= qoiconv
 hostprogs-always-$(CONFIG_TLV)				+= bareboxtlv
+hostprogs-always-$(CONFIG_ASN1)				+= asn1_compiler
 hostprogs-always-$(CONFIG_KEYTOC)			+= keytoc
 HOSTCFLAGS_keytoc.o = `$(PKG_CONFIG) --cflags openssl`
 HOSTLDLIBS_keytoc = `$(PKG_CONFIG) --libs openssl`
