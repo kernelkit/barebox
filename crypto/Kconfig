@@ -143,6 +143,15 @@ config CRYPTO_X509
 	  finding the signer of a PKCS#7 message, and to verify chains of
 	  certificates.
 
+config CRYPTO_PKCS7
+	bool "PKCS#7 signature verification"
+	select CRYPTO_X509
+	help
+	  Verify PKCS#7/CMS SignedData messages, both with and without
+	  authenticated attributes, against the keys in a keyring. Chains
+	  of certificates carried in the message are followed until a
+	  trusted key is found.
+
 config CRYPTO_BUILTIN_KEYS
 	bool "builtin keys"
 	select KEYTOC
