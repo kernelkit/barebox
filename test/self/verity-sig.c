@@ -8,6 +8,8 @@
 #include <crypto/x509.h>
 #include <linux/ctype.h>
 #include <linux/err.h>
+#include <linux/hex.h>
+#include <crypto/sha.h>
 #include <linux/kernel.h>
 #include <linux/sizes.h>
 #include <stdio.h>
@@ -85,6 +87,7 @@ static void test_verity_sig(void)
 	char *sig = b64(sig_root_hash, sizeof(sig_root_hash));
 	char *other = b64(sig_noattr, sizeof(sig_noattr));
 	char bad_hash[sizeof(root_hash)];
+	u8 digest[SHA256_DIGEST_SIZE];
 	struct doc_fields f;
 	char *doc, *rh;
 
@@ -180,6 +183,29 @@ static void test_verity_sig(void)
 	memset(doc + strlen(doc), ' ', DOC_SIZE - strlen(doc));
 	assert_inteq(check(doc, &root, NULL), 0);
 	free(doc);
+
+	/* A vouched for root hash needs no trusted signature... */
+	if (!hex2bin(digest, root_hash, sizeof(digest))) {
+		keyring_add_hash(&rogue_kr, HASH_ALGO_SHA256, digest,
+				 sizeof(digest));
+		f = (struct doc_fields) { .root_hash = root_hash, .signature = sig };
+		doc = mkdoc(&f);
+		assert_inteq(check(doc, &rogue_kr, NULL), 0);
+
+		/* ...but a blacklisted one is never accepted */
+		keyring_add_hash(keyring_blacklist(), HASH_ALGO_SHA256, digest,
+				 sizeof(digest));
+		assert_inteq(check(doc, &rogue_kr, NULL), -EKEYREJECTED);
+		assert_inteq(check(doc, &root, NULL), -EKEYREJECTED);
+		keyring_del_hash(keyring_blacklist(), HASH_ALGO_SHA256, digest,
+				 sizeof(digest));
+		assert_inteq(check(doc, &root, NULL), 0);
+
+		keyring_del_hash(&rogue_kr, HASH_ALGO_SHA256, digest,
+				 sizeof(digest));
+		assert_inteq(check(doc, &rogue_kr, NULL), -ENOKEY);
+		free(doc);
+	}
 
 	keyring_unlink_key(&root, root_cert->pub);
 	keyring_unlink_key(&rogue_kr, rogue_cert->pub);
