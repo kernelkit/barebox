@@ -4,6 +4,7 @@
  */
 
 #include <common.h>
+#include <fuzz.h>
 
 #include <crypto/internal/ecc.h>
 #include <crypto/public_key.h>
@@ -114,6 +115,16 @@ int ecdsa_verify(const struct ecdsa_public_key *key, const uint8_t *sig,
 
 	if (hash_len < key_size_bytes)
 		return -EINVAL;
+
+	/*
+	 * A fuzzer cannot produce a signature that verifies, so replace
+	 * the whole verification with a comparison of the lowest bit of
+	 * the hash against the signature, like rsa_verify() does.
+	 */
+	if (fuzz_insecure_partial_digest_enabled())
+		return fuzz_insecure_checksum_accepted(hash[hash_len - 1],
+						       sig[sig_len - 1]) ?
+			0 : -EKEYREJECTED;
 
 	ctx->curve_id = curve_id;
 	ctx->curve = ecc_get_curve(curve_id);
