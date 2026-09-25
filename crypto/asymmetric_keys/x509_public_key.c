@@ -54,6 +54,14 @@ int x509_get_sig_params(struct x509_certificate *cert)
 	if (ret < 0)
 		return ret;
 
+	if (blacklist_has_hash(HASH_ALGO_SHA256, cert->sha256, sizeof(cert->sha256)) ||
+	    blacklist_has_hash(HASH_ALGO_SHA256, cert->fingerprint,
+			       sizeof(cert->fingerprint))) {
+		pr_err("Cert %*phN is blacklisted\n",
+		       (int)sizeof(cert->sha256), cert->sha256);
+		cert->blacklisted = true;
+	}
+
 	sig->s = kmemdup(cert->raw_sig, cert->raw_sig_size, GFP_KERNEL);
 	if (!sig->s)
 		return -ENOMEM;

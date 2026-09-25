@@ -8,6 +8,7 @@
 #include <common.h>
 #include <digest.h>
 #include <crypto/pkcs7.h>
+#include <crypto/sha.h>
 #include <linux/err.h>
 
 static int pkcs7_verify_trust(struct pkcs7_message *pkcs7,
@@ -31,6 +32,40 @@ static int pkcs7_verify_trust(struct pkcs7_message *pkcs7,
 	return pkcs7_validate_trust(pkcs7, trust_keyring, _key);
 }
 
+static int pkcs7_check_hash(const u8 *digest,
+			    const struct keyring *trust_keyring)
+{
+	if (blacklist_has_hash(HASH_ALGO_SHA256, digest, SHA256_DIGEST_SIZE)) {
+		pr_err("Data is blacklisted\n");
+		return -EKEYREJECTED;
+	}
+
+	if (keyring_has_hash(trust_keyring, HASH_ALGO_SHA256, digest,
+			     SHA256_DIGEST_SIZE))
+		return 0;
+
+	return -ENOKEY;
+}
+
+/*
+ * Combine the result of the signature verification with the result of
+ * checking the data's digest: a blacklisted digest always wins, and a
+ * vouched for digest is enough, when there is no trusted signature.
+ */
+static int pkcs7_combine(int ret, int hret, const struct public_key **_key)
+{
+	if (ret && ret != -ENOKEY)
+		return ret;
+
+	if (hret == -EKEYREJECTED || (ret && !hret)) {
+		if (_key)
+			*_key = NULL;
+		return hret;
+	}
+
+	return ret;
+}
+
 /**
  * pkcs7_verify_buf - Verify a detached PKCS#7 signature over a buffer
  * @sig: The DER encoded PKCS#7 message
@@ -44,31 +79,78 @@ static int pkcs7_verify_trust(struct pkcs7_message *pkcs7,
  * certificate chain that is anchored in it. -ENOKEY if the signature is
  * valid, but no trusted key was found, and some other negative error code
  * on invalid signatures.
+ *
+ * Additionally, the SHA256 of the data is checked against the digests in
+ * the blacklist, which always causes it to be rejected, and those in
+ * @trust_keyring, which causes it to be accepted regardless of its
+ * signature, in which case *@_key is set to NULL. If @sig is NULL, only
+ * the digests are considered.
  */
 int pkcs7_verify_buf(const void *sig, size_t siglen,
 		     const void *data, size_t datalen,
 		     const struct keyring *trust_keyring,
 		     const struct public_key **_key)
 {
+	u8 digest[SHA256_DIGEST_SIZE];
 	struct pkcs7_message *pkcs7;
-	int ret;
+	struct digest *d;
+	int ret = -ENOKEY;
 
-	pkcs7 = pkcs7_parse_message(sig, siglen);
-	if (IS_ERR(pkcs7))
-		return PTR_ERR(pkcs7);
+	if (_key)
+		*_key = NULL;
 
-	ret = pkcs7_supply_detached_data(pkcs7, data, datalen);
-	if (!ret)
-		ret = pkcs7_verify_trust(pkcs7, trust_keyring, _key);
+	d = digest_alloc_by_algo(HASH_ALGO_SHA256);
+	if (!d)
+		return -ENOPKG;
+	ret = digest_digest(d, data, datalen, digest);
+	digest_free(d);
+	if (ret)
+		return ret;
 
-	pkcs7_free_message(pkcs7);
-	return ret;
+	if (sig) {
+		pkcs7 = pkcs7_parse_message(sig, siglen);
+		if (IS_ERR(pkcs7))
+			return PTR_ERR(pkcs7);
+
+		ret = pkcs7_supply_detached_data(pkcs7, data, datalen);
+		if (!ret)
+			ret = pkcs7_verify_trust(pkcs7, trust_keyring, _key);
+
+		pkcs7_free_message(pkcs7);
+	} else {
+		ret = -ENOKEY;
+	}
+
+	return pkcs7_combine(ret, pkcs7_check_hash(digest, trust_keyring), _key);
 }
 EXPORT_SYMBOL_GPL(pkcs7_verify_buf);
 
+/*
+ * Check the SHA256 of a file against the blacklist and the digests that
+ * the keyring vouches for. @algo and @hash is a digest of the file that is
+ * already known, and which is reused if it is a SHA256.
+ */
+static int pkcs7_check_file_hash(const char *filename,
+				 const struct keyring *trust_keyring,
+				 const char *algo, const u8 *hash)
+{
+	u8 digest[SHA256_DIGEST_SIZE];
+	int ret;
+
+	if (algo && hash && !strcmp(algo, "sha256")) {
+		memcpy(digest, hash, sizeof(digest));
+	} else {
+		ret = digest_file_by_name("sha256", filename, digest, NULL);
+		if (ret)
+			return ret;
+	}
+
+	return pkcs7_check_hash(digest, trust_keyring);
+}
+
 /**
  * pkcs7_verify_file - Verify a detached PKCS#7 signature over a file
- * @sig: The DER encoded PKCS#7 message
+ * @sig: The DER encoded PKCS#7 message (or NULL)
  * @siglen: The size of @sig
  * @filename: The file containing the signed data
  * @trust_keyring: The keys to trust
@@ -76,6 +158,12 @@ EXPORT_SYMBOL_GPL(pkcs7_verify_buf);
  *
  * Like pkcs7_verify_buf(), but the file is digested piecewise, so it may
  * be arbitrarily large.
+ *
+ * Additionally, the SHA256 of the file is checked against the digests in
+ * the blacklist, which always causes it to be rejected, and those in
+ * @trust_keyring, which causes it to be accepted regardless of its
+ * signature, in which case *@_key is set to NULL. If @sig is NULL, only
+ * the digests are considered.
  */
 int pkcs7_verify_file(const void *sig, size_t siglen,
 		      const char *filename,
@@ -83,10 +171,16 @@ int pkcs7_verify_file(const void *sig, size_t siglen,
 		      const struct public_key **_key)
 {
 	struct pkcs7_message *pkcs7;
-	const char *algo;
+	const char *algo = NULL;
 	struct digest *d = NULL;
 	u8 *hash = NULL;
 	int ret;
+
+	if (_key)
+		*_key = NULL;
+
+	if (!sig)
+		return pkcs7_check_file_hash(filename, trust_keyring, NULL, NULL);
 
 	pkcs7 = pkcs7_parse_message(sig, siglen);
 	if (IS_ERR(pkcs7))
@@ -109,6 +203,13 @@ int pkcs7_verify_file(const void *sig, size_t siglen,
 	ret = pkcs7_supply_detached_digest(pkcs7, algo, hash, digest_length(d));
 	if (!ret)
 		ret = pkcs7_verify_trust(pkcs7, trust_keyring, _key);
+
+	/* The SHA256 may be blacklisted, or vouched for, on its own */
+	if (!ret || ret == -ENOKEY)
+		ret = pkcs7_combine(ret, pkcs7_check_file_hash(filename,
+							       trust_keyring,
+							       algo, hash),
+				    _key);
 
 out:
 	free(hash);

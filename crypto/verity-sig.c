@@ -27,7 +27,10 @@
 #include <jsmn.h>
 #include <linux/ctype.h>
 #include <linux/err.h>
+#include <linux/hex.h>
+#include <linux/kernel.h>
 #include <crypto/pkcs7.h>
+#include <crypto/sha.h>
 #include <crypto/verity-sig.h>
 
 static char *verity_sig_str(const char *json, const jsmntok_t *tokens,
@@ -142,26 +145,52 @@ void verity_sig_free(struct verity_sig *sig)
  *
  * Returns 0 if the root hash is vouched for by a key in @trust_keyring,
  * or a negative error code.
+ *
+ * A SHA256 root hash is also checked against the digests in the blacklist,
+ * which always causes it to be rejected, and those in @trust_keyring, which
+ * causes it to be accepted regardless of its signature. In the latter case,
+ * *@_key is set to NULL.
  */
 int verity_sig_verify(const void *buf, size_t len,
 		      const struct keyring *trust_keyring,
 		      char **root_hash, const struct public_key **_key)
 {
+	u8 digest[SHA256_DIGEST_SIZE];
 	struct verity_sig sig;
+	bool sha256 = false;
 	int ret;
 
 	ret = verity_sig_parse(buf, len, &sig);
 	if (ret)
 		return ret;
 
+	if (strlen(sig.root_hash) == 2 * sizeof(digest) &&
+	    !hex2bin(digest, sig.root_hash, sizeof(digest))) {
+		sha256 = true;
+
+		if (blacklist_has_hash(HASH_ALGO_SHA256, digest, sizeof(digest))) {
+			pr_err("rootHash is blacklisted\n");
+			ret = -EKEYREJECTED;
+			goto out;
+		}
+	}
+
 	ret = pkcs7_verify_buf(sig.pkcs7, sig.pkcs7_len,
 			       sig.root_hash, strlen(sig.root_hash),
 			       trust_keyring, _key);
+	if (ret && sha256 &&
+	    keyring_has_hash(trust_keyring, HASH_ALGO_SHA256, digest,
+			     sizeof(digest))) {
+		if (_key)
+			*_key = NULL;
+		ret = 0;
+	}
+
 	if (!ret) {
 		*root_hash = sig.root_hash;
 		sig.root_hash = NULL;
 	}
-
+out:
 	verity_sig_free(&sig);
 	return ret;
 }

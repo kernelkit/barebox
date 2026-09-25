@@ -47,6 +47,10 @@ find_asymmetric_key(const struct keyring *keyring,
 		return ERR_PTR(-EINVAL);
 
 	for_each_key_in_keyring(key, keyring) {
+		/* Revoked keys are never trusted */
+		if (public_key_is_blacklisted(key))
+			continue;
+
 		if (!lookup) {
 			if (key->cert && x509_subject_is(key->cert, id_2))
 				return key;
@@ -86,6 +90,12 @@ static int pkcs7_validate_trust_one(struct pkcs7_message *pkcs7,
 	if (sinfo->unsupported_crypto) {
 		kleave(" = -ENOPKG [cached]");
 		return -ENOPKG;
+	}
+
+	/* A signature by a revoked certificate can never be trusted */
+	if (sinfo->blacklisted) {
+		kleave(" = -ENOKEY [blacklisted]");
+		return -ENOKEY;
 	}
 
 	for (x509 = sinfo->signer; x509; x509 = x509->signer) {
