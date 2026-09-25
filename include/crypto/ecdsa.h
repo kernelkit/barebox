@@ -14,11 +14,17 @@ struct ecdsa_public_key {
 };
 
 #ifdef CONFIG_CRYPTO_ECDSA
+int ecdsa_key_size(const char *curve_name);
 int ecdsa_verify(const struct ecdsa_public_key *key, const uint8_t *sig,
 		 const uint32_t sig_len, const uint8_t *hash,
 		 enum hash_algo algo);
 struct ecdsa_public_key *ecdsa_key_dup(const struct ecdsa_public_key *key);
 #else
+static inline int ecdsa_key_size(const char *curve_name)
+{
+	return 0;
+}
+
 static inline int ecdsa_verify(const struct ecdsa_public_key *key, const uint8_t *sig,
 		 const uint32_t sig_len, const uint8_t *hash,
 		 enum hash_algo algo)

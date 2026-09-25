@@ -60,12 +60,26 @@ static int _ecdsa_verify(struct ecc_ctx *ctx, const u64 *hash, const u64 *r, con
 	return -EKEYREJECTED;
 }
 
-static int ecdsa_key_size(const char *curve_name)
+static unsigned int ecdsa_curve_id(const char *curve_name)
 {
 	if (!strcmp(curve_name, "prime256v1"))
+		return ECC_CURVE_NIST_P256;
+	if (!strcmp(curve_name, "secp384r1"))
+		return ECC_CURVE_NIST_P384;
+
+	return 0;
+}
+
+int ecdsa_key_size(const char *curve_name)
+{
+	switch (ecdsa_curve_id(curve_name)) {
+	case ECC_CURVE_NIST_P256:
 		return 256;
-	else
+	case ECC_CURVE_NIST_P384:
+		return 384;
+	default:
 		return 0;
+	}
 }
 
 int ecdsa_verify(const struct ecdsa_public_key *key, const uint8_t *sig,
@@ -74,12 +88,12 @@ int ecdsa_verify(const struct ecdsa_public_key *key, const uint8_t *sig,
 {
 	struct ecc_ctx _ctx = {};
 	struct ecc_ctx *ctx = &_ctx;
-	unsigned int curve_id = ECC_CURVE_NIST_P256;
+	unsigned int curve_id = ecdsa_curve_id(key->curve_name);
 	struct digest *d;
 	int hash_len;
 	int ret;
 	const void *r, *s;
-	u64 rh[4], sh[4];
+	u64 rh[ECC_MAX_DIGITS], sh[ECC_MAX_DIGITS];
 	u64 mhash[ECC_MAX_DIGITS];
 	int key_size_bits, key_size_bytes;
 
