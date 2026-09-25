@@ -54,6 +54,7 @@ config SELFTEST_ENABLE_ALL
 	select SELFTEST_X509 if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_PKCS7 if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_VERITY_SIG if CRYPTO_RSA && CRYPTO_ECDSA
+	select SELFTEST_EFI_SIGLIST if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_TALLOC
 	select SELFTEST_BLSPEC if BLSPEC && DEFAULT_ENVIRONMENT
 	help
@@ -195,6 +196,15 @@ config SELFTEST_VERITY_SIG
 	help
 	  Tests the parsing and verification of Discoverable Disk Image
 	  root hash signature documents.
+
+config SELFTEST_EFI_SIGLIST
+	bool "EFI signature list selftest"
+	depends on CRYPTO_RSA && CRYPTO_ECDSA
+	select CRYPTO_EFI_SIGLIST
+	select CRYPTO_PKCS7
+	help
+	  Tests the loading of EFI signature lists, as found in the db
+	  and dbx variables, into keyrings and the blacklist.
 
 config SELFTEST_LVM
 	bool "LVM selftest"
