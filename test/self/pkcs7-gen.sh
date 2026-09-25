@@ -2,14 +2,20 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Generate the certificates and signatures used by the PKCS#7
-# selftest, and emit them as a C header on stdout:
+# selftest, and emit them as a C header on stdout. The root
+# certificate is also written, in PEM format, to the file given as an
+# argument, from which it is compiled in as a builtin key:
 #
-#   test/self/pkcs7-gen.sh >test/self/pkcs7-data.h
+#   cd test/self
+#   ./pkcs7-gen.sh pkcs7-root.pem >pkcs7-data.h
+#   make ... REGENERATE_KEYTOC=1
 #
 # The output is checked in, so that building the tests does not
 # depend on OpenSSL.
 
 set -e
+
+pem=$(realpath "$1")
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -54,6 +60,7 @@ issued() {
 }
 
 selfsigned root "$RSA2048"
+cp root.pem "$pem"
 issued inter root "$P256" ext-ca.cnf
 issued leaf inter "$RSA2048" ext-leaf.cnf
 issued leaf_ec root "$P384" ext-leaf.cnf

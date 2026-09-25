@@ -3,7 +3,10 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <bselftest.h>
+#include <crypto/ecdsa.h>
 #include <crypto/pkcs7.h>
+#include <crypto/public_key.h>
+#include <crypto/rsa.h>
 #include <crypto/x509.h>
 #include <libfile.h>
 #include <linux/err.h>
@@ -14,6 +17,9 @@
 #include <xfuncs.h>
 
 #include "pkcs7-data.h"
+
+/* The root certificate, compiled in by keytoc */
+#include "pkcs7-root.pem.h"
 
 BSELFTEST_GLOBALS();
 
@@ -313,3 +319,48 @@ out:
 	tkr_free(&tkr);
 }
 bselftest(core, test_pkcs7_corrupt);
+
+/* Compiled in keys are usable as trust anchors */
+static void test_pkcs7_builtin(void)
+{
+	const struct public_key *key, *found = NULL;
+	const struct keyring *kr;
+
+	kr = keyring_find("selftest-pkcs7");
+	if (!assert_cond(kr))
+		return;
+
+	key = keyring_find_key(kr, "pkcs7-root");
+	if (!assert_cond(!IS_ERR(key)))
+		return;
+
+	/* The key's certificate is parsed during initialization */
+	if (!assert_cond(key->cert))
+		return;
+
+	assert_streq(key->cert->subject, "barebox: root");
+	assert_cond(key->cert->pub == key);
+
+	/*
+	 * The parameters derived at runtime must match the ones keytoc
+	 * computed for the same key using OpenSSL.
+	 */
+	if (assert_cond((key->type == PUBLIC_KEY_TYPE_RSA &&
+			 key->rsa->len == key_1.len))) {
+		assert_cond(key->rsa->n0inv == key_1.n0inv);
+		assert_cond(key->rsa->exponent == key_1.exponent);
+		assert_cond(!memcmp(key->rsa->modulus, key_1.modulus,
+				    key_1.len * sizeof(uint32_t)));
+		assert_cond(!memcmp(key->rsa->rr, key_1.rr,
+				    key_1.len * sizeof(uint32_t)));
+	}
+	assert_cond(!memcmp(key->hash, key_1_hash, sizeof(key_1_hash)));
+
+	assert_inteq(pkcs7_verify_buf(sig_noattr, sizeof(sig_noattr),
+				      data, strlen(data), kr, &found), 0);
+	assert_cond(found == key);
+
+	assert_inteq(pkcs7_verify_buf(sig_rogue, sizeof(sig_rogue),
+				      data, strlen(data), kr, NULL), -ENOKEY);
+}
+bselftest(core, test_pkcs7_builtin);
