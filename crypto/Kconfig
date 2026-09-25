@@ -153,6 +153,16 @@ config CRYPTO_PKCS7
 	  of certificates carried in the message are followed until a
 	  trusted key is found.
 
+config CRYPTO_VERITY_SIG
+	bool "dm-verity root hash signatures"
+	select CRYPTO_PKCS7
+	select JSMN
+	select BASE64
+	help
+	  Verify the signed root hashes stored in the *-verity-sig
+	  partitions of Discoverable Disk Images, as described by the
+	  UAPI Group's Discoverable Partitions Specification.
+
 config CRYPTO_BUILTIN_KEYS
 	bool "builtin keys"
 	select KEYTOC
