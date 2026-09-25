@@ -28,6 +28,8 @@ obj-y			+= libbb.o
 obj-y			+= libgen.o
 obj-$(CONFIG_FIP)	+= fip.o tbbr_config.o
 obj-$(CONFIG_JSMN)	+= jsmn.o
+obj-$(CONFIG_ASN1)	+= asn1_decoder.o
+obj-$(CONFIG_OID_REGISTRY)	+= oid_registry.o
 obj-y			+= stringlist.o
 obj-y			+= scatterlist.o
 obj-y			+= cmdlinepart.o
@@ -118,3 +120,15 @@ $(foreach file, $(libfdt_files), \
 	$(eval CFLAGS_$(file:%.o=%.pbl.o) = -I $(srctree)/scripts/dtc/libfdt))
 
 obj-pbl-$(CONFIG_LIBFDT) += $(libfdt_files)
+
+# Build a fast OID lookup registry from include/linux/oid_registry.h
+$(obj)/oid_registry.o: $(obj)/oid_registry_data.c
+
+$(obj)/oid_registry_data.c: $(srctree)/include/linux/oid_registry.h \
+			    $(src)/build_OID_registry
+	$(call cmd,build_OID_registry)
+
+quiet_cmd_build_OID_registry = GEN     $@
+      cmd_build_OID_registry = $(PERL) $(src)/build_OID_registry $< $@
+
+clean-files	+= oid_registry_data.c
