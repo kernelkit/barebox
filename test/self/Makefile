@@ -31,6 +31,8 @@ bbenv-$(CONFIG_SELFTEST_BLSPEC) += defaultenv-blspec-test
 obj-$(CONFIG_SELFTEST_LVM) += lvm.o
 obj-$(CONFIG_SELFTEST_X509) += x509.o
 obj-$(CONFIG_SELFTEST_PKCS7) += pkcs7.o
+CFLAGS_pkcs7.o += -I$(obj)
+$(obj)/pkcs7.o: $(obj)/pkcs7-root.pem.h
 CFLAGS_lvm.o += -I$(srctree)/drivers/block/dm/lvm
 
 ifdef REGENERATE_KEYTOC
@@ -38,8 +40,11 @@ ifdef REGENERATE_KEYTOC
 $(obj)/development_rsa2048.pem.c_shipped: $(src)/development_rsa2048.pem FORCE
 	$(call if_changed,public_keys,$(basename $(target-stem)):$<,-s)
 
+$(obj)/pkcs7-root.pem.h_shipped: $(src)/pkcs7-root.pem FORCE
+	$(call if_changed,public_keys,keyring=selftest-pkcs7$(comma)fit-hint=pkcs7-root:$<)
+
 endif
 
 clean-files := *.dtb *.dtb.S .*.dtc .*.pre .*.dts *.dtb.z
 clean-files += *.dtbo *.dtbo.S .*.dtso
-clean-files += *.pem.c
+clean-files += *.pem.c *.pem.h
