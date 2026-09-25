@@ -3,6 +3,8 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <bselftest.h>
+#include <digest.h>
+#include <crypto/sha.h>
 #include <crypto/ecdsa.h>
 #include <crypto/pkcs7.h>
 #include <crypto/public_key.h>
@@ -369,3 +371,126 @@ static void test_pkcs7_builtin(void)
 				      data, strlen(data), kr, NULL), -ENOKEY);
 }
 bselftest(core, test_pkcs7_builtin);
+
+static void data_sha256(u8 *digest)
+{
+	struct digest *d = digest_alloc_by_algo(HASH_ALGO_SHA256);
+
+	digest_digest(d, data, strlen(data), digest);
+	digest_free(d);
+}
+
+/* Revoked certificates and data are rejected, whatever the signature */
+static void test_pkcs7_blacklist(void)
+{
+	struct keyring *bl = keyring_blacklist();
+	struct x509_certificate *inter_cert;
+	u8 digest[SHA256_DIGEST_SIZE];
+	struct test_keyring tkr;
+	const struct public_key *root_key;
+
+	if (!assert_cond(bl))
+		return;
+
+	tkr_init(&tkr);
+	root_key = tkr_add(&tkr, root);
+	inter_cert = x509_cert_parse(inter_der, sizeof(inter_der));
+	if (!root_key || !assert_cond(!IS_ERR(inter_cert)))
+		goto out;
+
+	/* The trust anchor itself, by the hash of the whole certificate */
+	keyring_add_hash(bl, HASH_ALGO_SHA256, root_key->cert->fingerprint,
+			 SHA256_DIGEST_SIZE);
+	assert_inteq(verify(sig_noattr, &tkr, NULL), -ENOKEY);
+	keyring_del_hash(bl, HASH_ALGO_SHA256, root_key->cert->fingerprint,
+			 SHA256_DIGEST_SIZE);
+	assert_inteq(verify(sig_noattr, &tkr, NULL), 0);
+
+	/* An intermediate in the message, by the hash of its TBS */
+	keyring_add_hash(bl, HASH_ALGO_SHA256, inter_cert->sha256,
+			 SHA256_DIGEST_SIZE);
+	assert_cond(verify(sig_noattr, &tkr, NULL) < 0);
+	assert_cond(verify(sig_attrs, &tkr, NULL) < 0);
+	/* ...but a chain that does not involve it is fine */
+	assert_inteq(verify(sig_ec, &tkr, NULL), 0);
+	keyring_del_hash(bl, HASH_ALGO_SHA256, inter_cert->sha256,
+			 SHA256_DIGEST_SIZE);
+
+	/* The data itself, even when signed with another digest */
+	data_sha256(digest);
+	keyring_add_hash(bl, HASH_ALGO_SHA256, digest, sizeof(digest));
+	assert_inteq(verify(sig_noattr, &tkr, NULL), -EKEYREJECTED);
+	assert_inteq(verify(sig_ec, &tkr, NULL), -EKEYREJECTED);
+	keyring_del_hash(bl, HASH_ALGO_SHA256, digest, sizeof(digest));
+
+	assert_inteq(verify(sig_noattr, &tkr, NULL), 0);
+out:
+	if (!IS_ERR_OR_NULL(inter_cert))
+		x509_free_certificate(inter_cert);
+	tkr_free(&tkr);
+}
+bselftest(core, test_pkcs7_blacklist);
+
+/* Keyrings can vouch for data by its digest alone */
+static void test_pkcs7_allowlist(void)
+{
+	static const char *path = "/pkcs7-selftest-allow";
+	const struct public_key *key = (void *)1;
+	struct keyring *bl = keyring_blacklist();
+	u8 digest[SHA256_DIGEST_SIZE];
+	struct test_keyring tkr;
+
+	tkr_init(&tkr);
+	data_sha256(digest);
+
+	assert_inteq(pkcs7_verify_buf(NULL, 0, data, strlen(data),
+				      &tkr.kr, NULL), -ENOKEY);
+
+	keyring_add_hash(&tkr.kr, HASH_ALGO_SHA256, digest, sizeof(digest));
+
+	assert_inteq(pkcs7_verify_buf(NULL, 0, data, strlen(data),
+				      &tkr.kr, &key), 0);
+	assert_cond(!key);
+
+	/* An untrusted signature doesn't matter */
+	assert_inteq(verify(sig_rogue, &tkr, NULL), 0);
+	/* Other data does */
+	assert_inteq(pkcs7_verify_buf(NULL, 0, data, strlen(data) - 1,
+				      &tkr.kr, NULL), -ENOKEY);
+
+	if (assert_inteq(write_file(path, data, strlen(data)), 0)) {
+		assert_inteq(pkcs7_verify_file(NULL, 0, path, &tkr.kr, NULL), 0);
+		assert_inteq(pkcs7_verify_file(sig_rogue, sizeof(sig_rogue),
+					       path, &tkr.kr, NULL), 0);
+		/* SHA-384 signature, so the SHA256 is computed separately */
+		assert_inteq(pkcs7_verify_file(sig_ec, sizeof(sig_ec),
+					       path, &tkr.kr, NULL), 0);
+
+		/* The blacklist trumps everything */
+		keyring_add_hash(bl, HASH_ALGO_SHA256, digest, sizeof(digest));
+		assert_inteq(pkcs7_verify_file(NULL, 0, path, &tkr.kr, NULL),
+			     -EKEYREJECTED);
+		keyring_del_hash(bl, HASH_ALGO_SHA256, digest, sizeof(digest));
+
+		unlink(path);
+	}
+
+	/* Hashes are found in sub-keyrings as well */
+	{
+		struct keyring *outer = keyring_find("pkcs7-selftest-outer");
+
+		if (!outer)
+			outer = keyring_create("pkcs7-selftest-outer");
+
+		if (assert_cond(!IS_ERR(outer))) {
+			keyring_link_keyring(outer, &tkr.kr);
+			assert_inteq(pkcs7_verify_buf(NULL, 0, data, strlen(data),
+						      outer, NULL), 0);
+			keyring_unlink_keyring(outer, &tkr.kr);
+		}
+	}
+
+	keyring_del_hash(&tkr.kr, HASH_ALGO_SHA256, digest, sizeof(digest));
+	tkr_free(&tkr);
+}
+bselftest(core, test_pkcs7_allowlist);
