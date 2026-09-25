@@ -29,6 +29,7 @@ obj-$(CONFIG_SELFTEST_DM) += dm.o
 obj-$(CONFIG_SELFTEST_BLSPEC) += blspec.o
 bbenv-$(CONFIG_SELFTEST_BLSPEC) += defaultenv-blspec-test
 obj-$(CONFIG_SELFTEST_LVM) += lvm.o
+obj-$(CONFIG_SELFTEST_X509) += x509.o
 CFLAGS_lvm.o += -I$(srctree)/drivers/block/dm/lvm
 
 ifdef REGENERATE_KEYTOC

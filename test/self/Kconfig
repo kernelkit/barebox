@@ -51,6 +51,7 @@ config SELFTEST_ENABLE_ALL
 	select SELFTEST_TLV
 	select SELFTEST_DM
 	select SELFTEST_LVM if BLOCK
+	select SELFTEST_X509 if CRYPTO_RSA && CRYPTO_ECDSA
 	select SELFTEST_TALLOC
 	select SELFTEST_BLSPEC if BLSPEC && DEFAULT_ENVIRONMENT
 	help
@@ -163,6 +164,17 @@ config SELFTEST_TLV
 	select TLV
 	select BASE64
 	select BOARD_LXA
+
+config SELFTEST_X509
+	bool "X.509 selftest"
+	depends on CRYPTO_RSA && CRYPTO_ECDSA
+	select CRYPTO_X509
+	select DIGEST_SHA384_GENERIC
+	select DIGEST_SHA512_GENERIC
+	help
+	  Tests the parsing of X.509 certificates with RSA and ECDSA
+	  keys, verification of the signatures of certificates signed
+	  by one another, and rejection of corrupted certificates.
 
 config SELFTEST_LVM
 	bool "LVM selftest"
