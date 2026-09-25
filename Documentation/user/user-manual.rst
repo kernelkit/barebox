@@ -33,6 +33,7 @@ Contents:
    threat-model
    security
    security-policies
+   pkcs7
    reset-reason
    system-reset
    state
