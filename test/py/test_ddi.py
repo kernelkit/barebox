@@ -81,11 +81,29 @@ def cleanup(barebox, barebox_config):
                   "CONFIG_CMD_VERITYSETUP",
                   "CONFIG_CMD_DMSETUP")
     yield
+    barebox.run("global.fs.require_signed_backingstore=0")
     barebox.run("umount /mnt/ddi-root")
     barebox.run("veritysetup close ddi-root")
     barebox.run("dmsetup remove ddi-data")
     barebox.run("dmsetup remove ddi-hash")
     barebox.run("cd")
+
+
+def test_ddi_unverified(barebox, ddi_testdata):
+    """A root hash that has not been vouched for does not make the
+    verity device signed, even though it is the correct one.
+
+    This must run before any test that verifies the signature.
+    """
+    barebox.run_check("cd /mnt/9p/testfs/ddi")
+    barebox.run_check("dmsetup create ddi-data root.dm")
+    barebox.run_check("dmsetup create ddi-hash root-verity.dm")
+    barebox.run_check("veritysetup open /dev/ddi-data ddi-root /dev/ddi-hash "
+                      + ddi_testdata["roothash"])
+
+    barebox.run_check("global.fs.require_signed_backingstore=1")
+    _, _, returncode = barebox.run("mount ddi-root")
+    assert returncode != 0, "Unverified verity device should not be mountable"
 
 
 def test_ddi_verity(barebox, ddi_testdata):
@@ -102,6 +120,9 @@ def test_ddi_verity(barebox, ddi_testdata):
     barebox.run_check("dmsetup create ddi-data root.dm")
     barebox.run_check("dmsetup create ddi-hash root-verity.dm")
     barebox.run_check("veritysetup open /dev/ddi-data ddi-root /dev/ddi-hash $global.ddi_roothash")
+
+    # The root hash has been vouched for, so the device is signed
+    barebox.run_check("global.fs.require_signed_backingstore=1")
     barebox.run_check("mount ddi-root")
 
     out = barebox.run_check("cat /mnt/ddi-root/hello.txt")

@@ -305,6 +305,21 @@ static blkcnt_t dm_size(struct dm_device *dm)
 	return last->base + last->size;
 }
 
+static bool dm_is_trusted(struct dm_device *dm)
+{
+	struct dm_target *ti;
+
+	if (list_empty(&dm->targets))
+		return false;
+
+	list_for_each_entry(ti, &dm->targets, list) {
+		if (!ti->ops->is_trusted || !ti->ops->is_trusted(ti))
+			return false;
+	}
+
+	return true;
+}
+
 char *dm_asprint(struct dm_device *dm)
 {
 	struct dm_target *ti;
@@ -480,7 +495,10 @@ struct dm_device *dm_create(const char *name, const char *table)
 
 	dm->blk = (struct block_device) {
 		.dev = &dm->dev,
-		.cdev.name = xstrdup(name),
+		.cdev = {
+			.name = xstrdup(name),
+			.flags = dm_is_trusted(dm) ? DEVFS_IS_TRUSTED : 0,
+		},
 
 		.type = BLK_TYPE_VIRTUAL,
 		.ops = &dm_blk_ops,

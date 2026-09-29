@@ -19,4 +19,14 @@ int verity_sig_verify(const void *buf, size_t len,
 		      const struct keyring *trust_keyring,
 		      char **root_hash, const struct public_key **_key);
 
+#ifdef CONFIG_CRYPTO_VERITY_SIG
+bool verity_sig_root_hash_is_trusted(const void *digest, size_t len);
+#else
+static inline bool verity_sig_root_hash_is_trusted(const void *digest,
+						   size_t len)
+{
+	return false;
+}
+#endif
+
 #endif /* __CRYPTO_VERITY_SIG_H */

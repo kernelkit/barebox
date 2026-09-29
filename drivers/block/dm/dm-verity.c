@@ -23,6 +23,8 @@
 #include <linux/hex.h>
 #include <linux/kstrtox.h>
 
+#include <crypto/verity-sig.h>
+
 #include "dm-target.h"
 
 #define DM_VERITY_MAX_LEVELS 63
@@ -449,8 +451,16 @@ static char *dm_verity_asprint(struct dm_target *ti)
 			 (int)v->digest_len, v->root_digest);
 }
 
+static bool dm_verity_is_trusted(struct dm_target *ti)
+{
+	struct dm_verity *v = ti->private;
+
+	return verity_sig_root_hash_is_trusted(v->root_digest, v->digest_len);
+}
+
 static struct dm_target_ops dm_verity_ops = {
 	.name = "verity",
+	.is_trusted = dm_verity_is_trusted,
 	.asprint = dm_verity_asprint,
 	.create = dm_verity_create,
 	.destroy = dm_verity_destroy,

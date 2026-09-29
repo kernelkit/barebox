@@ -58,6 +58,7 @@ struct dm_target_ops {
 	struct list_head list;
 	const char *name;
 
+	bool (*is_trusted)(struct dm_target *ti);
 	char *(*asprint)(struct dm_target *ti);
 	int (*create)(struct dm_target *ti, unsigned int argc, char **argv);
 	int (*destroy)(struct dm_target *ti);

@@ -133,6 +133,46 @@ void verity_sig_free(struct verity_sig *sig)
 	memset(sig, 0, sizeof(*sig));
 }
 
+#define VERITY_SIG_KEYRING ".verity"
+
+/*
+ * Root hashes that have been vouched for are remembered, so that
+ * dm-verity devices created with them can be identified as trustworthy,
+ * regardless of how the root hash was handed to them (e.g. by a script).
+ * The digests are opaque, since verity supports several algorithms.
+ */
+static void verity_sig_trust_root_hash(const char *root_hash)
+{
+	struct keyring *kr;
+	size_t len = strlen(root_hash) / 2;
+	u8 *digest;
+
+	kr = keyring_find(VERITY_SIG_KEYRING);
+	if (!kr)
+		kr = keyring_create(VERITY_SIG_KEYRING);
+	if (IS_ERR(kr))
+		return;
+
+	digest = xmalloc(len);
+	if (!hex2bin(digest, root_hash, len))
+		keyring_add_hash(kr, HASH_ALGO__LAST, digest, len);
+	free(digest);
+}
+
+/**
+ * verity_sig_root_hash_is_trusted - Check whether a root hash is vouched for
+ * @digest: The binary root hash
+ * @len: The size of @digest
+ *
+ * Returns true if @digest has been verified by verity_sig_verify().
+ */
+bool verity_sig_root_hash_is_trusted(const void *digest, size_t len)
+{
+	const struct keyring *kr = keyring_find(VERITY_SIG_KEYRING);
+
+	return kr && keyring_has_hash(kr, HASH_ALGO__LAST, digest, len);
+}
+
 /**
  * verity_sig_verify - Verify a verity signature document
  * @buf: The contents of the signature partition
@@ -187,6 +227,7 @@ int verity_sig_verify(const void *buf, size_t len,
 	}
 
 	if (!ret) {
+		verity_sig_trust_root_hash(sig.root_hash);
 		*root_hash = sig.root_hash;
 		sig.root_hash = NULL;
 	}
