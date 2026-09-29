@@ -81,11 +81,35 @@ def cleanup(barebox, barebox_config):
                   "CONFIG_CMD_VERITYSETUP",
                   "CONFIG_CMD_DMSETUP")
     yield
+    barebox.run("global.blspec.require_trust=0")
     barebox.run("umount /mnt/ddi-root")
     barebox.run("veritysetup close ddi-root")
     barebox.run("dmsetup remove ddi-data")
     barebox.run("dmsetup remove ddi-hash")
     barebox.run("cd")
+
+
+def test_ddi_unverified(barebox, ddi_testdata):
+    """A root hash that has not been vouched for does not make the
+    verity device trusted, even though it is the correct one.
+
+    This must run before any test that verifies the signature.
+    """
+    barebox.run_check("cd /mnt/9p/testfs/ddi")
+    barebox.run_check("dmsetup create ddi-data root.dm")
+    barebox.run_check("dmsetup create ddi-hash root-verity.dm")
+    barebox.run_check("veritysetup open /dev/ddi-data ddi-root /dev/ddi-hash "
+                      + ddi_testdata["roothash"])
+
+    # The boot entry in the root filesystem is only offered when the
+    # device it is read from need not be trusted
+    out = barebox.run_check("boot -l ddi-root")
+    assert any("DDI test" in line for line in out), out
+
+    barebox.run_check("global.blspec.require_trust=1")
+    out, _, returncode = barebox.run("boot -l ddi-root")
+    assert returncode != 0, "Unverified verity device should not be trusted"
+    assert not any("DDI test" in line for line in out), out
 
 
 def test_ddi_verity(barebox, ddi_testdata):
@@ -102,6 +126,12 @@ def test_ddi_verity(barebox, ddi_testdata):
     barebox.run_check("dmsetup create ddi-data root.dm")
     barebox.run_check("dmsetup create ddi-hash root-verity.dm")
     barebox.run_check("veritysetup open /dev/ddi-data ddi-root /dev/ddi-hash $global.ddi_roothash")
+
+    # The root hash has been vouched for, so the device is trusted
+    barebox.run_check("global.blspec.require_trust=1")
+    out = barebox.run_check("boot -l ddi-root")
+    assert any("DDI test" in line for line in out), out
+
     barebox.run_check("mount ddi-root")
 
     out = barebox.run_check("cat /mnt/ddi-root/hello.txt")
