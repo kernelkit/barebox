@@ -25,8 +25,14 @@
         { .b = { 0x##v0, 0x##v1, 0x##v2, 0x##v3, 0x##v4, 0x##v5, 0x##v6, 0x##v7, \
                      0x##v8, 0x##v9, 0x##v10, 0x##v11, 0x##v12, 0x##v13, 0x##v14, 0x##v15 }}
 
+/*
+ * The IDs below are written in UUID (big endian) byte order, as in
+ * systemd, while the partition type GUIDs of a GPT, i.e. guid_t, have
+ * their first three fields stored in little endian. Swap them, so that
+ * the IDs can be compared against the type GUIDs of partitions.
+ */
 #define SD_ID128_MAKE(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) \
-        ((const guid_t) SD_ID128_ARRAY(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15))
+        ((const guid_t) SD_ID128_ARRAY(v3, v2, v1, v0, v5, v4, v7, v6, v8, v9, v10, v11, v12, v13, v14, v15))
 
 #define SD_ID128_MAKE_UUID_STR(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p) \
         #a #b #c #d "-" #e #f "-" #g #h "-" #i #j "-" #k #l #m #n #o #p
