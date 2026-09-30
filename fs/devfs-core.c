@@ -130,7 +130,7 @@ cdev_find_child_by_gpt_typeuuid(struct cdev *cdev, const guid_t *typeuuid)
 	for_each_cdev_partition(partcdev, cdev) {
 		if (!guid_equal(&partcdev->typeuuid, typeuuid))
 			continue;
-		if (cdev->typeflags & DPS_TYPE_FLAG_NO_AUTO) {
+		if (partcdev->typeflags & DPS_TYPE_FLAG_NO_AUTO) {
 			dev_dbg(cdev->dev, "auto discovery skipped\n");
 			continue;
 		}
