@@ -3,7 +3,11 @@
 #
 # Create a Discoverable Disk Image holding a dm-verity protected root
 # filesystem, whose root hash is signed by a certificate issued by a
-# test CA. This is used by the DDI labgrid tests.
+# test CA. The root filesystem holds a Boot Loader Specification entry.
+# This is used by the DDI labgrid tests.
+#
+# Partitions are typed for the architecture of the host, the tests
+# retype them as needed.
 #
 #   scripts/ddi-verity.sh test/testdata
 #
@@ -33,15 +37,24 @@ ossl x509 -req -in signer.csr -CA ca.pem -CAkey ca.key -set_serial 1 \
 ossl req -x509 -newkey rsa:2048 -nodes -keyout other.key -out other.pem \
      -subj "/O=barebox/CN=ddi-other" -days 36500
 
-mkdir defs root
+mkdir -p defs root/boot root/loader/entries
 echo "Hello from a verified DDI" >root/hello.txt
+
+# A boot entry, whose kernel is only good enough for dry runs
+head -c 4096 /dev/zero >root/boot/vmlinuz
+cat >root/loader/entries/ddi-test.conf <<EOF
+title		DDI test
+version		1
+linux		/boot/vmlinuz
+options		ddi.test
+EOF
 
 cat >defs/00-root.conf <<EOF
 [Partition]
 Type=root
 Label=root
 Format=vfat
-CopyFiles=/hello.txt
+CopyFiles=/
 Verity=data
 VerityMatchKey=root
 SizeMinBytes=1M

@@ -118,12 +118,63 @@ Since the root hash is only taken from the verified signature document, and
 the root filesystem is only accessed through the verity device, every block
 read from it is verified against the signed root hash.
 
+Booting Discoverable Disk Images
+--------------------------------
+
+With ``CONFIG_BOOT_DDI``, disks holding a root partition, its verity hash
+partition, and the verity signature partition, all of the native
+architecture, are offered as boot entries. They can be booted like any
+other device, listed with ``boot -l``, picked from ``boot -m``, and used as
+bootchooser targets:
+
+.. code-block:: sh
+
+  global.ddi.keyring=os
+  boot -l internal-primary
+  boot internal-primary internal-secondary
+
+Booting such an entry:
+
+1. Verifies the root hash signature against the keyring named by
+   ``global.ddi.keyring`` (``os`` by default).
+2. Opens the root filesystem through dm-verity, as the device ``root``, and
+   mounts it.
+3. Boots the first working Boot Loader Specification entry found in it,
+   adding the verified root hash to the kernel command line using the
+   parameters understood by ``systemd-veritysetup-generator``:
+
+   .. code-block:: none
+
+     roothash=<hash> systemd.verity_root_data=PARTUUID=<root>
+     systemd.verity_root_hash=PARTUUID=<root-verity>
+
+   Entries using ``linux-appendroot`` get ``root=/dev/mapper/root``.
+
+With ``global.ddi.require_trust`` (enabled by default) cleared, e.g. when
+Secure Boot is disabled, a DDI whose root hash signature can not be
+verified is booted anyway. Its root hash is then taken from the signature
+document as is, so dm-verity still detects corruption, but not tampering:
+
+.. code-block:: sh
+
+  [ "$efi.secure_boot" = 0 ] && global.ddi.require_trust=0
+
+Should any step fail, the verity device is removed again, and the next
+entry is tried. The root partition itself is never scanned for boot
+entries by other means, since its contents must only be accessed through
+dm-verity.
+
 Security considerations
 -----------------------
 
 - Verification done by scripts is only effective if the script itself, and
   the rest of the environment, can not be modified by an attacker, see
   :ref:`security`.
+
+- dm-verity devices are only considered signed, which is what
+  ``global.fs.require_signed_backingstore`` requires of mounted devices, if
+  their root hash has been vouched for, e.g. by ``pkcs7 verify-ddi`` or by
+  booting a DDI.
 
 - There is no reliable time source in barebox, so certificate validity
   periods are not checked. The signing time of a signature, if present, is
