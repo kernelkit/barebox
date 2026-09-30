@@ -823,6 +823,24 @@ config BLSPEC
 	  on a device and it allows the Operating System to install / update
 	  kernels.
 
+config BOOT_DDI
+	bool
+	prompt "Support booting Discoverable Disk Images"
+	depends on BLSPEC
+	depends on DM_BLK_VERITY
+	select CRYPTO_VERITY_SIG
+	help
+	  Offer disks holding a dm-verity protected root filesystem, as
+	  described by the UAPI Group's Discoverable Partitions
+	  Specification, as boot entries.
+
+	  When booted, the signature of the root hash is verified against
+	  the keyring named by global.ddi.keyring ("os" by default), the
+	  root filesystem is mounted through dm-verity, and the Boot Loader
+	  Specification entries found in it are booted. The verified root
+	  hash is passed on to Linux using the kernel command line
+	  parameters understood by systemd-veritysetup-generator.
+
 config EXTLINUX
 	bool
 	prompt "Support extlinux.conf"

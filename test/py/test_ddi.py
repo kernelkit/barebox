@@ -95,6 +95,9 @@ def test_ddi_unverified(barebox, ddi_testdata):
 
     This must run before any test that verifies the signature.
     """
+    if any("RING: .verity" in line for line in barebox.run_check("keys")):
+        pytest.skip("root hashes have already been vouched for")
+
     barebox.run_check("cd /mnt/9p/testfs/ddi")
     barebox.run_check("dmsetup create ddi-data root.dm")
     barebox.run_check("dmsetup create ddi-hash root-verity.dm")

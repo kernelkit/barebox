@@ -28,6 +28,7 @@ obj-$(CONFIG_SYSTEM_PARTITIONS) += system-partitions.o
 obj-$(CONFIG_BINFMT)		+= binfmt.o
 obj-$(CONFIG_BLOCK)		+= block.o
 obj-$(CONFIG_BLSPEC)		+= blspec.o
+obj-$(CONFIG_BOOT_DDI)		+= boot-ddi.o
 obj-$(CONFIG_BOOTM)		+= bootm.o booti.o
 obj-$(CONFIG_BOOTM_AIMAGE)	+= bootm-android-image.o
 obj-$(CONFIG_BOOT_OVERRIDE)	+= bootm-overrides.o
