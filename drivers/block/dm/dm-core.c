@@ -289,9 +289,25 @@ static int dm_blk_write(struct block_device *blk, const void *buf,
 	return -EIO;
 }
 
+/*
+ * Linux names device mapper devices after the name they were created
+ * with, e.g. by LVM or veritysetup, which conventionally match the names
+ * used in barebox. Partitions of dm devices have no such stable name,
+ * so leave them to be identified by their PARTUUID.
+ */
+static char *dm_blk_get_root(struct block_device *blk,
+			     const struct cdev *partcdev)
+{
+	if (partcdev != &blk->cdev)
+		return NULL;
+
+	return xasprintf("/dev/mapper/%s", blk->cdev.name);
+}
+
 static struct block_device_ops dm_blk_ops = {
 	.read = dm_blk_read,
 	.write = dm_blk_write,
+	.get_root = dm_blk_get_root,
 };
 
 static blkcnt_t dm_size(struct dm_device *dm)
