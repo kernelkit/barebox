@@ -188,17 +188,70 @@ static int lvm_activate_lv(struct lvm_lv *lv, const char *name)
 	return IS_ERR(dm) ? PTR_ERR(dm) : 0;
 }
 
+/* Activate all LVs of a VG that are not already active */
+static int lvm_activate_vg(struct lvm_vg *vg)
+{
+	struct dm_device *dm;
+	struct lvm_lv *lv;
+	char *name;
+	int err, ret = 0;
+	size_t i;
+
+	for (i = 0; i < vg->num_lvs; i++) {
+		lv = vg->lvs[i];
+
+		name = xasprintf("%s-%s", vg->name, lv->name);
+		dm = dm_find_by_name(name);
+		free(name);
+		if (!IS_ERR_OR_NULL(dm))
+			continue;
+
+		err = lvm_activate_lv(lv, NULL);
+		if (err && !ret)
+			ret = err;
+	}
+
+	return ret;
+}
+
+static int lvm_activate_all(void)
+{
+	struct lvm_vg_iter *iter;
+	struct lvm_vg *vg;
+	int err, ret = 0;
+
+	iter = lvm_vg_iter_new();
+	while ((vg = lvm_vg_iter_next(iter))) {
+		err = lvm_activate_vg(vg);
+		if (err && !ret)
+			ret = err;
+
+		lvm_vg_free(vg);
+	}
+
+	lvm_vg_iter_free(iter);
+	return ret;
+}
+
 static int lvm_activate(int argc, char *argv[])
 {
 	struct lvm_vg *vg = NULL;
 	struct lvm_lv *lv;
 	int err;
 
-	if (argc < 2 || argc > 3)
+	if (argc > 3)
 		return COMMAND_ERROR_USAGE;
+
+	if (!argc)
+		return lvm_activate_all() ? COMMAND_ERROR : COMMAND_SUCCESS;
 
 	if (lvm_vg_by_spec(argv[0], &vg))
 		return COMMAND_ERROR;
+
+	if (argc == 1) {
+		err = lvm_activate_vg(vg);
+		goto out_free;
+	}
 
 	lv = lvm_vg_lv_by_name(vg, argv[1]);
 	if (!lv) {
@@ -253,6 +306,8 @@ BAREBOX_CMD_HELP_TEXT("")
 BAREBOX_CMD_HELP_TEXT("commands:")
 BAREBOX_CMD_HELP_OPT("info [<vg>]", "Show volume groups (all if <vg> is omitted)")
 BAREBOX_CMD_HELP_OPT("activate <vg> <lv> [<name>]", "Create a dm device for an LV")
+BAREBOX_CMD_HELP_OPT("activate [<vg>]", "Create dm devices, named <vg>-<lv>, for all")
+BAREBOX_CMD_HELP_OPT("", "inactive LVs of <vg> (of all VGs if <vg> is omitted)")
 BAREBOX_CMD_HELP_END
 
 BAREBOX_CMD_START(lvm)

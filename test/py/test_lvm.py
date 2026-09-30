@@ -73,3 +73,30 @@ def test_lvm(barebox, barebox_config, lvm_testdata):
     bigsum = barebox.run_check("md5sum /mnt/testvg-testlv/bigfile")[0].split()[0]
     bigexp = barebox.run_check("cat /mnt/testvg-testlv/bigfile.md5sum")[0].split()[0]
     assert bigsum == bigexp, "Expected md5sum of bigfile to match bigfile.md5sum"
+
+
+def test_lvm_activate_all(barebox, barebox_config, lvm_testdata):
+    barebox.run_check("cd /mnt/9p/testfs/lvm")
+    barebox.run_check("dmsetup create pvs lvm-pvs.disk.dm")
+
+    # All LVs of a named VG
+    out = barebox.run_check("lvm activate testvg")
+    assert "Created testvg-testlv" in out
+
+    # Already active LVs are left alone
+    out = barebox.run_check("lvm activate testvg")
+    assert not any("Created" in line for line in out)
+
+    barebox.run_check("dmsetup remove testvg-testlv")
+
+    # All LVs of all VGs
+    out = barebox.run_check("lvm activate")
+    assert "Created testvg-testlv" in out
+
+    barebox.run_check("mount testvg-testlv")
+    bigsum = barebox.run_check("md5sum /mnt/testvg-testlv/bigfile")[0].split()[0]
+    bigexp = barebox.run_check("cat /mnt/testvg-testlv/bigfile.md5sum")[0].split()[0]
+    assert bigsum == bigexp, "Expected md5sum of bigfile to match bigfile.md5sum"
+
+    _, _, returncode = barebox.run("lvm activate nosuchvg")
+    assert returncode != 0, "Activating a missing VG should fail"
