@@ -93,3 +93,16 @@ def test_dm_verity(barebox, barebox_config, dm_testdata):
 
     barebox.run_check("umount /dev/bad")
     barebox.run_check("veritysetup close bad")
+
+
+def test_dm_loop(barebox, barebox_config, dm_testdata):
+    skip_disabled(barebox_config, "CONFIG_CMD_DMSETUP", "CONFIG_DM_BLK_LINEAR")
+
+    barebox.run_check("cd /mnt/9p/testfs/dm")
+    barebox.run_check("dmsetup loop dmloop good.fat")
+    barebox.run_check("md5sum /mnt/dmloop/latin")
+    barebox.run_check("umount /dev/dmloop")
+    barebox.run_check("dmsetup remove dmloop")
+
+    _, _, returncode = barebox.run("dmsetup loop dmloop does-not-exist")
+    assert returncode != 0, "Mapping a missing file should fail"
