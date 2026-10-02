@@ -3,8 +3,13 @@
 
 #include <command.h>
 #include <device-mapper.h>
+#include <disks.h>
+#include <fs.h>
 #include <libfile.h>
 #include <stdio.h>
+#include <xfuncs.h>
+
+#include <linux/stat.h>
 
 static struct dm_device *dmsetup_find(const char *name)
 {
@@ -100,6 +105,54 @@ static int dmsetup_create(int argc, char *argv[])
 	return COMMAND_SUCCESS;
 }
 
+/* Create a linear mapping over all of a file, like a loop device */
+static int dmsetup_loop(int argc, char *argv[])
+{
+	struct dm_device *dm;
+	char *path, *table;
+	struct stat st;
+	int ret = COMMAND_ERROR;
+
+	if (argc != 2)
+		return COMMAND_ERROR_USAGE;
+
+	path = canonicalize_path(AT_FDCWD, argv[1]);
+	if (!path || stat(path, &st)) {
+		printf("%s: %m\n", argv[1]);
+		goto out;
+	}
+
+	if (!S_ISREG(st.st_mode)) {
+		printf("%s: Not a regular file\n", argv[1]);
+		goto out;
+	}
+
+	if (st.st_size < SECTOR_SIZE) {
+		printf("%s: Smaller than a sector\n", argv[1]);
+		goto out;
+	}
+
+	if (st.st_size % SECTOR_SIZE)
+		printf("%s: Ignoring trailing %llu bytes of partial sector\n",
+		       argv[1], (unsigned long long)(st.st_size % SECTOR_SIZE));
+
+	table = xasprintf("0 %llu linear %s 0\n",
+			  (unsigned long long)(st.st_size >> SECTOR_SHIFT), path);
+
+	dm = dm_create(argv[0], table);
+	free(table);
+	if (IS_ERR_OR_NULL(dm)) {
+		printf("Failed to create %s: %pe\n", argv[0], dm);
+		goto out;
+	}
+
+	printf("Created %s\n", argv[0]);
+	ret = COMMAND_SUCCESS;
+out:
+	free(path);
+	return ret;
+}
+
 static int do_dmsetup(int argc, char *argv[])
 {
 	const char *cmd;
@@ -115,6 +168,8 @@ static int do_dmsetup(int argc, char *argv[])
 		return dmsetup_create(argc, argv);
 	else if (!strcmp(cmd, "info"))
 		return dmsetup_info(argc, argv);
+	else if (!strcmp(cmd, "loop"))
+		return dmsetup_loop(argc, argv);
 	else if (!strcmp(cmd, "remove"))
 		return dmsetup_remove(argc, argv);
 
@@ -132,6 +187,7 @@ BAREBOX_CMD_HELP_TEXT("")
 BAREBOX_CMD_HELP_TEXT("commands:")
 BAREBOX_CMD_HELP_OPT("create <name> <table-file>", "Create new device")
 BAREBOX_CMD_HELP_OPT("info [<name>]", "Show device information")
+BAREBOX_CMD_HELP_OPT("loop <name> <file>", "Create new device mapping all of <file>")
 BAREBOX_CMD_HELP_OPT("remove <name>", "Remove device")
 BAREBOX_CMD_HELP_END
 
