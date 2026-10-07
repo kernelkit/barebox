@@ -102,7 +102,6 @@ static int blspec_boot(struct bootentry *be, int verbose, int dryrun)
 
 	bootm_data_init_defaults(&data);
 	data.dryrun = max_t(int, dryrun, data.dryrun);
-	data.os_file = data.oftree_file = data.initrd_file = NULL;
 	data.verbose = max(verbose, data.verbose);
 
 	devicetree = blspec_entry_var_get(entry, "devicetree");
