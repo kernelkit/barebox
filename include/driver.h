@@ -580,6 +580,7 @@ extern struct list_head cdev_list;
 #define DEVFS_WRITE_AUTOERASE		(1U << 14)
 #define DEVFS_PARTITION_CAN_OVERLAP	(1U << 15)
 #define DEVFS_HAS_AUTOMOUNT		(1U << 16)
+#define DEVFS_IS_TRUSTED		(1U << 17)
 
 /**
  * cdev_write_requires_erase - Check whether writes must be done to erased blocks
@@ -616,6 +617,11 @@ get_inheritable_devfs_flags(const struct cdev *parent_cdev)
 static inline bool cdev_is_storage(const struct cdev *cdev)
 {
 	return (cdev->flags & DEVFS_IS_BLOCK_DEV) || cdev->mtd;
+}
+
+static inline bool cdev_is_trusted(const struct cdev *cdev)
+{
+	return cdev && (cdev->flags & DEVFS_IS_TRUSTED);
 }
 
 struct cdev *
