@@ -21,6 +21,8 @@
 
 #include <bootscan.h>
 
+static int require_trust = 0;
+
 struct blspec_entry {
 	struct bootentry entry;
 
@@ -197,6 +199,19 @@ static struct blspec_entry *blspec_entry_alloc(struct bootentries *bootentries)
 	return entry;
 }
 
+static bool blspec_entry_allowed(const char *abspath)
+{
+	struct fs_device *fsdev = get_fsdevice_by_path(AT_FDCWD, abspath);
+
+	if (!require_trust)
+		return true;
+
+	if (!fsdev || !fsdev->cdev)
+		return false;
+
+	return cdev_is_trusted(fsdev->cdev);
+}
+
 /*
  * blspec_entry_open - open an entry given a path
  */
@@ -208,6 +223,9 @@ static struct blspec_entry *blspec_entry_open(struct bootentries *bootentries,
 	char *buf;
 
 	pr_debug("%s: %s\n", __func__, abspath);
+
+	if (!blspec_entry_allowed(abspath))
+		return ERR_PTR(-EPERM);
 
 	buf = read_file(abspath, NULL);
 	if (!buf)
@@ -700,6 +718,7 @@ static struct bootentry_provider blspec_bootentry_provider = {
 
 static int blspec_init(void)
 {
+	globalvar_add_simple_bool("blspec.require_trust", &require_trust);
 	return bootentry_register_provider(&blspec_bootentry_provider);
 }
 device_initcall(blspec_init);
