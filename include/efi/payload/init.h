@@ -31,6 +31,7 @@ extern struct efi_boot_services *BS;
 #define device_efi_initcall(fn)		__define_efi_initcall(device, fn)
 #define fs_efi_initcall(fn)		__define_efi_initcall(fs, fn)
 #define late_efi_initcall(fn)		__define_efi_initcall(late, fn)
+#define postenvironment_efi_initcall(fn)	__define_efi_initcall(postenvironment, fn)
 
 #define register_efi_driver_macro(level,bus,drv)	\
 	static int __init drv##_register(void)		\

@@ -35,3 +35,13 @@ config EFI_PAYLOAD_BOOTM
 
 config EFI_STUB
        def_bool HAVE_EFI_STUB
+
+config EFI_PAYLOAD_STATE_LAYOUT_PATH
+	string "State layout path"
+	default "/boot/efi/state.dtb"
+	help
+	  Location from which to load the state layout description.
+
+	  WARNING: Beware that if this path resides outside the trust
+	  boundary, e.g., on the ESP, an attacker can control the set
+	  of variables loaded into Barebox's environment.

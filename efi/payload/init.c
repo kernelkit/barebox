@@ -282,7 +282,7 @@ postcore_efi_initcall(efi_postcore_init);
 
 static int efi_late_init(void)
 {
-	const char *state_desc = "/boot/EFI/barebox/state.dtb";
+	const char *state_desc = CONFIG_EFI_PAYLOAD_STATE_LAYOUT_PATH;
 	struct device_node *state_root = NULL;
 	size_t size;
 	void *fdt;
@@ -291,7 +291,7 @@ static int efi_late_init(void)
 	if (!IS_ENABLED(CONFIG_STATE))
 		return 0;
 
-	if (!get_mounted_path("/boot")) {
+	if (!strncmp(state_desc, "/boot", 5) && !get_mounted_path("/boot")) {
 		pr_warn("boot device couldn't be determined%s\n",
 			IS_ENABLED(CONFIG_FS_EFI) ? "" : " without CONFIG_FS_EFI");
 		return 0;
@@ -334,7 +334,7 @@ static int efi_late_init(void)
 
 	return 0;
 }
-late_efi_initcall(efi_late_init);
+postenvironment_efi_initcall(efi_late_init);
 
 static int do_efiexit(int argc, char *argv[])
 {
