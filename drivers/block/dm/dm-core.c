@@ -437,11 +437,16 @@ err_destroy:
 	return -EINVAL;
 }
 
-void dm_destroy(struct dm_device *dm)
+int dm_destroy(struct dm_device *dm)
 {
 	struct dm_target *ti, *tmp;
+	int ret;
 
-	blockdevice_unregister(&dm->blk);
+	/* E.g. a partition of the device is still mounted */
+	ret = blockdevice_unregister(&dm->blk);
+	if (ret)
+		return ret;
+
 	free(dm->blk.cdev.name);
 
 	list_for_each_entry_safe_reverse(ti, tmp, &dm->targets, list) {
@@ -452,6 +457,7 @@ void dm_destroy(struct dm_device *dm)
 	unregister_device(&dm->dev);
 
 	free(dm);
+	return 0;
 }
 EXPORT_SYMBOL(dm_destroy);
 

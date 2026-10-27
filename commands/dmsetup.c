@@ -6,6 +6,8 @@
 #include <libfile.h>
 #include <stdio.h>
 
+#include <linux/err.h>
+
 static struct dm_device *dmsetup_find(const char *name)
 {
 	struct dm_device *dm;
@@ -22,6 +24,7 @@ static struct dm_device *dmsetup_find(const char *name)
 static int dmsetup_remove(int argc, char *argv[])
 {
 	struct dm_device *dm;
+	int ret;
 
 	if (argc != 1)
 		return COMMAND_ERROR_USAGE;
@@ -30,7 +33,11 @@ static int dmsetup_remove(int argc, char *argv[])
 	if (!dm)
 		return COMMAND_ERROR;
 
-	dm_destroy(dm);
+	ret = dm_destroy(dm);
+	if (ret) {
+		printf("Failed to remove %s: %pe\n", argv[0], ERR_PTR(ret));
+		return COMMAND_ERROR;
+	}
 
 	printf("Removed %s\n", argv[0]);
 	return COMMAND_SUCCESS;

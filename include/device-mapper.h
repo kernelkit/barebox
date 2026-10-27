@@ -10,7 +10,7 @@ int dm_foreach(int (*cb)(struct dm_device *dm, void *ctx), void *ctx);
 
 char *dm_asprint(struct dm_device *dm);
 
-void dm_destroy(struct dm_device *dm);
+int dm_destroy(struct dm_device *dm);
 struct dm_device *dm_create(const char *name, const char *ctable);
 
 #if defined(CONFIG_DM_BLK_VERITY)
